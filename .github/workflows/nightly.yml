@@ -1,8 +1,8 @@
 name: Nightly (EF Core preview compatibility)
 
 on:
-  schedule:
-    - cron: '0 3 * * *'
+#  schedule: Disabled until package has adopters
+#    - cron: '0 3 * * *'
   workflow_dispatch:
 
 jobs:

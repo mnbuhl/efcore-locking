@@ -40,7 +40,10 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         CommandExecutedEventData eventData,
         DbDataReader result)
     {
-        var wasLocking = LockContext.Current is not null;
+        // Use the SQL tag as the reliable signal: AsyncLocal changes in child continuations
+        // do not propagate back to the caller's execution context, so LockContext.Current
+        // may still be set from a prior locking query when SaveChanges runs its own reader.
+        var wasLocking = command.CommandText.Contains(LockTagConstants.Prefix, StringComparison.Ordinal);
         LockContext.Current = null;
         return wasLocking ? WrapReader(result, eventData.Context) : result;
     }
@@ -51,7 +54,7 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         DbDataReader result,
         CancellationToken cancellationToken = default)
     {
-        var wasLocking = LockContext.Current is not null;
+        var wasLocking = command.CommandText.Contains(LockTagConstants.Prefix, StringComparison.Ordinal);
         LockContext.Current = null;
         return wasLocking
             ? new ValueTask<DbDataReader>(WrapReader(result, eventData.Context))

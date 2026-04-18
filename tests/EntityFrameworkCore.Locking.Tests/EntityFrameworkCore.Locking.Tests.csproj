@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);EF1001</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\EntityFrameworkCore.Locking\EntityFrameworkCore.Locking.csproj" />
     <PackageReference Include="xunit" />

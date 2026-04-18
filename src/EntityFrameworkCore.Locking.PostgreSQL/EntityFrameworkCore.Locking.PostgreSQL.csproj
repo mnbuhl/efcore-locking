@@ -5,6 +5,11 @@
     <Description>PostgreSQL (Npgsql) provider for EntityFrameworkCore.Locking.</Description>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- EF1001: intentional use of EF Core internal APIs (QuerySqlGenerator, INpgsqlSingletonOptions) -->
+    <NoWarn>$(NoWarn);EF1001</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\EntityFrameworkCore.Locking\EntityFrameworkCore.Locking.csproj" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />

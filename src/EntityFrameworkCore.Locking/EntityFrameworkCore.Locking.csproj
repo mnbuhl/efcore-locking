@@ -5,6 +5,11 @@
     <Description>Row-level locking for EF Core via ForUpdate() and ForShare() LINQ extension methods.</Description>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- EF1001: intentional use of EF Core internal APIs (IDbContextOptionsExtension infrastructure) -->
+    <NoWarn>$(NoWarn);EF1001</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
   </ItemGroup>

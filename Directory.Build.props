@@ -4,6 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- EF1001: intentional use of EF Core internal APIs throughout this repo -->
+    <NoWarn>$(NoWarn);EF1001</NoWarn>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 
     <Authors>mnbuhl</Authors>

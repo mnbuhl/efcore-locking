@@ -19,6 +19,9 @@ public interface ILockingProvider
     /// </summary>
     Task ValidateProviderAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Translates provider-specific database exceptions to typed locking exceptions.</summary>
+    IExceptionTranslator ExceptionTranslator { get; }
+
     /// <summary>
     /// Phase 2 seam: advisory lock provider. Returns null in Phase 1.
     /// Phase 2 providers override this default interface member.

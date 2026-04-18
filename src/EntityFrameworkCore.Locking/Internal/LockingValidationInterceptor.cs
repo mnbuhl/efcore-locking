@@ -1,13 +1,18 @@
+using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using System.Data.Common;
 
 namespace EntityFrameworkCore.Locking.Internal;
 
 /// <summary>
-/// Validates that a transaction is present when a locking query executes,
-/// and clears LockContext after each command (success or failure).
-/// Does NOT modify SQL — validation only.
+/// Validates transaction presence, emits pre-statement SQL (e.g. SET LOCAL lock_timeout),
+/// translates DB exceptions to typed locking exceptions, and clears LockContext on completion.
+/// Does NOT rewrite SQL — validation and cleanup only.
+/// Stateless: resolves ILockingProvider from the DbContext service provider per-command.
 /// </summary>
 public sealed class LockingValidationInterceptor : DbCommandInterceptor
 {
@@ -16,7 +21,7 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result)
     {
-        ValidateTransaction(eventData);
+        ValidateAndPrepare(command, eventData);
         return result;
     }
 
@@ -26,7 +31,7 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default)
     {
-        ValidateTransaction(eventData);
+        ValidateAndPrepare(command, eventData);
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
     }
 
@@ -52,6 +57,7 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
     public override void CommandFailed(DbCommand command, CommandErrorEventData eventData)
     {
         LockContext.Current = null;
+        TranslateAndRethrow(eventData.Exception, eventData.Context);
     }
 
     public override Task CommandFailedAsync(
@@ -60,17 +66,41 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         CancellationToken cancellationToken = default)
     {
         LockContext.Current = null;
+        TranslateAndRethrow(eventData.Exception, eventData.Context);
         return Task.CompletedTask;
     }
 
-    private static void ValidateTransaction(CommandEventData eventData)
+    private static void ValidateAndPrepare(DbCommand command, CommandEventData eventData)
     {
-        if (LockContext.Current is null)
+        var lockOptions = LockContext.Current;
+        if (lockOptions is null)
             return;
 
         if (eventData.Context?.Database.CurrentTransaction is null)
             throw new InvalidOperationException(
                 "ForUpdate requires an active transaction. " +
                 "Call BeginTransaction() before executing a locking query.");
+
+        var provider = ((IInfrastructure<IServiceProvider>)eventData.Context).Instance.GetService<ILockingProvider>();
+        if (provider is null)
+            return;
+
+        var preSql = provider.RowLockGenerator.GeneratePreStatementSql(lockOptions);
+        if (preSql is not null && !command.CommandText.StartsWith(preSql, StringComparison.Ordinal))
+            command.CommandText = preSql + ";\n" + command.CommandText;
+    }
+
+    private static void TranslateAndRethrow(Exception? exception, DbContext? context)
+    {
+        if (exception is null || context is null)
+            return;
+
+        var translator = ((IInfrastructure<IServiceProvider>)context).Instance.GetService<IExceptionTranslator>();
+        if (translator is null)
+            return;
+
+        var translated = translator.Translate(exception);
+        if (translated is not null)
+            throw translated;
     }
 }

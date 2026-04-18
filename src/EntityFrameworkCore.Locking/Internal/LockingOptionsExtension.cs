@@ -25,6 +25,8 @@ public sealed class LockingOptionsExtension : IDbContextOptionsExtension
         services.AddSingleton<ILockingProvider>(_provider);
         services.AddSingleton(_provider.RowLockGenerator);
         services.AddSingleton<ILockSqlGenerator>(_provider.RowLockGenerator);
+        services.AddSingleton(_provider.ExceptionTranslator);
+        services.AddSingleton<IExceptionTranslator>(_provider.ExceptionTranslator);
     }
 
     public void Validate(IDbContextOptions options) { }

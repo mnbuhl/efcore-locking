@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.MySql;
 using MySqlConnector;
@@ -16,8 +17,8 @@ public class ExceptionTranslationTests
     {
         var ex = CreateMySqlException(1213);
         var result = _translator.Translate(ex);
-        Assert.IsType<DeadlockException>(result);
-        Assert.Same(ex, result!.InnerException);
+        result.Should().BeOfType<DeadlockException>();
+        result!.InnerException.Should().BeSameAs(ex);
     }
 
     [Fact]
@@ -25,20 +26,30 @@ public class ExceptionTranslationTests
     {
         var ex = CreateMySqlException(1205);
         var result = _translator.Translate(ex);
-        Assert.IsType<LockTimeoutException>(result);
-        Assert.Same(ex, result!.InnerException);
+        result.Should().BeOfType<LockTimeoutException>();
+        result!.InnerException.Should().BeSameAs(ex);
+    }
+
+    [Fact]
+    public void Translate_NoWaitAbort_ReturnsLockTimeoutException()
+    {
+        // 3572 = "Statement aborted because lock(s) could not be acquired immediately and NOWAIT is set"
+        var ex = CreateMySqlException(3572);
+        var result = _translator.Translate(ex);
+        result.Should().BeOfType<LockTimeoutException>();
+        result!.InnerException.Should().BeSameAs(ex);
     }
 
     [Fact]
     public void Translate_UnrelatedError_ReturnsNull()
     {
-        Assert.Null(_translator.Translate(CreateMySqlException(1062)));
+        _translator.Translate(CreateMySqlException(1062)).Should().BeNull();
     }
 
     [Fact]
     public void Translate_NonMySqlException_ReturnsNull()
     {
-        Assert.Null(_translator.Translate(new Exception("random error")));
+        _translator.Translate(new Exception("random error")).Should().BeNull();
     }
 
     [Fact]
@@ -46,15 +57,13 @@ public class ExceptionTranslationTests
     {
         var inner = CreateMySqlException(1213);
         var wrapper = new Exception("wrapper", inner);
-        var result = _translator.Translate(wrapper);
-        Assert.IsType<DeadlockException>(result);
+        _translator.Translate(wrapper).Should().BeOfType<DeadlockException>();
     }
 
     private static MySqlException CreateMySqlException(int number)
     {
         var ex = (MySqlException)RuntimeHelpers.GetUninitializedObject(typeof(MySqlException));
 
-        // Try the compiler-generated backing field first
         var field = typeof(MySqlException).GetField(
             "<Number>k__BackingField",
             BindingFlags.NonPublic | BindingFlags.Instance);

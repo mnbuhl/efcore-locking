@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.PostgreSQL.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
@@ -29,20 +30,18 @@ public class ConcurrencyTests(PostgresFixture fixture)
         await ctxSeed.Database.EnsureCreatedAsync();
         var id = await SeedAsync(ctxSeed);
 
-        // Transaction A acquires lock
         await using var ctxA = CreateContext();
         await using var txA = await ctxA.Database.BeginTransactionAsync();
         var lockedRow = await ctxA.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
-        Assert.NotNull(lockedRow);
+        lockedRow.Should().NotBeNull();
 
-        // Transaction B with SKIP LOCKED should get null (row skipped)
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
         var skipped = await ctxB.Products.Where(p => p.Id == id)
             .ForUpdate(LockBehavior.SkipLocked)
             .FirstOrDefaultAsync();
 
-        Assert.Null(skipped);
+        skipped.Should().BeNull();
 
         await txA.RollbackAsync();
         await txB.RollbackAsync();
@@ -55,19 +54,18 @@ public class ConcurrencyTests(PostgresFixture fixture)
         await ctxSeed.Database.EnsureCreatedAsync();
         var id = await SeedAsync(ctxSeed, "NoWait Widget");
 
-        // Transaction A holds the lock
         await using var ctxA = CreateContext();
         await using var txA = await ctxA.Database.BeginTransactionAsync();
         await ctxA.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
 
-        // Transaction B with NOWAIT should throw LockTimeoutException immediately
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
 
-        await Assert.ThrowsAsync<LockTimeoutException>(() =>
-            ctxB.Products.Where(p => p.Id == id)
-                .ForUpdate(LockBehavior.NoWait)
-                .FirstOrDefaultAsync());
+        Func<Task> act = async () => await ctxB.Products.Where(p => p.Id == id)
+            .ForUpdate(LockBehavior.NoWait)
+            .FirstOrDefaultAsync();
+
+        await act.Should().ThrowAsync<LockTimeoutException>();
 
         await txA.RollbackAsync();
         await txB.RollbackAsync();
@@ -80,25 +78,22 @@ public class ConcurrencyTests(PostgresFixture fixture)
         await ctxSeed.Database.EnsureCreatedAsync();
         var id = await SeedAsync(ctxSeed, "Timeout Widget");
 
-        // Transaction A holds the lock
         await using var ctxA = CreateContext();
         await using var txA = await ctxA.Database.BeginTransactionAsync();
         await ctxA.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
 
-        // Transaction B with 200ms timeout
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        await Assert.ThrowsAsync<LockTimeoutException>(() =>
-            ctxB.Products.Where(p => p.Id == id)
-                .ForUpdate(LockBehavior.Wait, TimeSpan.FromMilliseconds(200))
-                .FirstOrDefaultAsync());
+        Func<Task> act = async () => await ctxB.Products.Where(p => p.Id == id)
+            .ForUpdate(LockBehavior.Wait, TimeSpan.FromMilliseconds(200))
+            .FirstOrDefaultAsync();
+
+        await act.Should().ThrowAsync<LockTimeoutException>();
         sw.Stop();
 
-        // Should fail well under 3 seconds
-        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3),
-            $"Lock timeout took too long: {sw.Elapsed}");
+        sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3));
 
         await txA.RollbackAsync();
         await txB.RollbackAsync();
@@ -115,9 +110,82 @@ public class ConcurrencyTests(PostgresFixture fixture)
             .Union(ctx.Products.Where(p => p.Id == 2))
             .ForUpdate();
 
-        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            query.ToListAsync());
+        Func<Task> act = async () => await query.ToListAsync();
+        await act.Should().ThrowAsync<LockingConfigurationException>();
 
         await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForShare_SkipLocked_SecondTransaction_SkipsLockedRow()
+    {
+        await using var ctxSeed = CreateContext();
+        await ctxSeed.Database.EnsureCreatedAsync();
+        var id = await SeedAsync(ctxSeed, "Share Widget");
+
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        var lockedRow = await ctxA.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync();
+        lockedRow.Should().NotBeNull();
+
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        var skipped = await ctxB.Products.Where(p => p.Id == id)
+            .ForUpdate(LockBehavior.SkipLocked)
+            .FirstOrDefaultAsync();
+
+        skipped.Should().BeNull();
+
+        await txA.RollbackAsync();
+        await txB.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForUpdate_TwoTransactions_SecondCommits_FirstSeesUpdatedData()
+    {
+        await using var ctxSeed = CreateContext();
+        await ctxSeed.Database.EnsureCreatedAsync();
+        var id = await SeedAsync(ctxSeed, "Versioned");
+
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        var rowA = await ctxA.Products.Where(p => p.Id == id).ForUpdate().FirstAsync();
+        rowA.Price = 99.99m;
+        await ctxA.SaveChangesAsync();
+        await txA.CommitAsync();
+
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        var rowB = await ctxB.Products.Where(p => p.Id == id).ForUpdate().FirstAsync();
+        rowB.Price.Should().Be(99.99m);
+        await txB.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForUpdate_MultipleRows_AllLocked_SkipLocked_ReturnsEmpty()
+    {
+        await using var ctxSeed = CreateContext();
+        await ctxSeed.Database.EnsureCreatedAsync();
+        var id1 = await SeedAsync(ctxSeed, "Bulk1");
+        var id2 = await SeedAsync(ctxSeed, "Bulk2");
+
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        var locked = await ctxA.Products
+            .Where(p => p.Id == id1 || p.Id == id2)
+            .ForUpdate()
+            .ToListAsync();
+        locked.Should().HaveCount(2);
+
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        var skipped = await ctxB.Products
+            .Where(p => p.Id == id1 || p.Id == id2)
+            .ForUpdate(LockBehavior.SkipLocked)
+            .ToListAsync();
+        skipped.Should().BeEmpty();
+
+        await txA.RollbackAsync();
+        await txB.RollbackAsync();
     }
 }

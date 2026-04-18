@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.SqlServer.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -17,7 +18,7 @@ public class ContainerSmokeTest(SqlServerFixture fixture)
         await using var ctx = new TestDbContext(options);
         await ctx.Database.EnsureCreatedAsync();
 
-        Assert.True(await ctx.Database.CanConnectAsync());
+        (await ctx.Database.CanConnectAsync()).Should().BeTrue();
     }
 }
 

@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.SqlServer;
 using Microsoft.Data.SqlClient;
@@ -16,8 +17,8 @@ public class ExceptionTranslationTests
     {
         var ex = CreateSqlException(1205);
         var result = _translator.Translate(ex);
-        Assert.IsType<DeadlockException>(result);
-        Assert.Same(ex, result!.InnerException);
+        result.Should().BeOfType<DeadlockException>();
+        result!.InnerException.Should().BeSameAs(ex);
     }
 
     [Fact]
@@ -25,20 +26,20 @@ public class ExceptionTranslationTests
     {
         var ex = CreateSqlException(1222);
         var result = _translator.Translate(ex);
-        Assert.IsType<LockTimeoutException>(result);
-        Assert.Same(ex, result!.InnerException);
+        result.Should().BeOfType<LockTimeoutException>();
+        result!.InnerException.Should().BeSameAs(ex);
     }
 
     [Fact]
     public void Translate_UnrelatedError_ReturnsNull()
     {
-        Assert.Null(_translator.Translate(CreateSqlException(2627)));
+        _translator.Translate(CreateSqlException(2627)).Should().BeNull();
     }
 
     [Fact]
     public void Translate_NonSqlException_ReturnsNull()
     {
-        Assert.Null(_translator.Translate(new Exception("random error")));
+        _translator.Translate(new Exception("random error")).Should().BeNull();
     }
 
     [Fact]
@@ -46,7 +47,7 @@ public class ExceptionTranslationTests
     {
         var inner = CreateSqlException(1205);
         var wrapper = new Exception("wrapper", inner);
-        Assert.IsType<DeadlockException>(_translator.Translate(wrapper));
+        _translator.Translate(wrapper).Should().BeOfType<DeadlockException>();
     }
 
     internal static SqlException CreateSqlException(int number)
@@ -55,14 +56,11 @@ public class ExceptionTranslationTests
         var collectionType = sqlClientAsm.GetType("Microsoft.Data.SqlClient.SqlErrorCollection")!;
         var errorType = sqlClientAsm.GetType("Microsoft.Data.SqlClient.SqlError")!;
 
-        // Build SqlError via uninitialized object + field injection
         var error = RuntimeHelpers.GetUninitializedObject(errorType);
         errorType.GetField("_number", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(error, number);
 
-        // Build SqlErrorCollection via uninitialized object + Add method
         var collection = RuntimeHelpers.GetUninitializedObject(collectionType);
 
-        // SqlErrorCollection.Add needs the internal List to exist; initialize via a field that holds the list
         var listField = collectionType
             .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
             .FirstOrDefault(f => f.FieldType.IsGenericType && f.FieldType.GetGenericTypeDefinition() == typeof(List<>));
@@ -75,7 +73,6 @@ public class ExceptionTranslationTests
         collectionType.GetMethod("Add", BindingFlags.NonPublic | BindingFlags.Instance)!
             .Invoke(collection, [error]);
 
-        // Create SqlException via internal static factory
         var createMethod = typeof(SqlException)
             .GetMethod("CreateException",
                 BindingFlags.NonPublic | BindingFlags.Static,

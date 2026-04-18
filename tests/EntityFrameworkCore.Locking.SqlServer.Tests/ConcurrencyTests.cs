@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.SqlServer.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
@@ -36,10 +37,11 @@ public class ConcurrencyTests(SqlServerFixture fixture)
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
 
-        await Assert.ThrowsAsync<LockTimeoutException>(() =>
-            ctxB.Products.Where(p => p.Id == id)
-                .ForUpdate(LockBehavior.NoWait)
-                .FirstOrDefaultAsync());
+        Func<Task> act = async () => await ctxB.Products.Where(p => p.Id == id)
+            .ForUpdate(LockBehavior.NoWait)
+            .FirstOrDefaultAsync();
+
+        await act.Should().ThrowAsync<LockTimeoutException>();
 
         await txA.RollbackAsync();
         await txB.RollbackAsync();
@@ -60,14 +62,14 @@ public class ConcurrencyTests(SqlServerFixture fixture)
         await using var txB = await ctxB.Database.BeginTransactionAsync();
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        await Assert.ThrowsAsync<LockTimeoutException>(() =>
-            ctxB.Products.Where(p => p.Id == id)
-                .ForUpdate(LockBehavior.Wait, TimeSpan.FromMilliseconds(500))
-                .FirstOrDefaultAsync());
+        Func<Task> act = async () => await ctxB.Products.Where(p => p.Id == id)
+            .ForUpdate(LockBehavior.Wait, TimeSpan.FromMilliseconds(500))
+            .FirstOrDefaultAsync();
+
+        await act.Should().ThrowAsync<LockTimeoutException>();
         sw.Stop();
 
-        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(10),
-            $"Lock timeout took too long: {sw.Elapsed}");
+        sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(10));
 
         await txA.RollbackAsync();
         await txB.RollbackAsync();
@@ -84,8 +86,61 @@ public class ConcurrencyTests(SqlServerFixture fixture)
             .Union(ctx.Products.Where(p => p.Id == 2))
             .ForUpdate();
 
-        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            query.ToListAsync());
+        Func<Task> act = async () => await query.ToListAsync();
+        await act.Should().ThrowAsync<LockingConfigurationException>();
+
+        await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForUpdate_TwoTransactions_SecondCommits_FirstSeesUpdatedData()
+    {
+        await using var ctxSeed = CreateContext();
+        await ctxSeed.Database.EnsureCreatedAsync();
+        var id = await SeedAsync(ctxSeed, "Versioned");
+
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        var rowA = await ctxA.Products.Where(p => p.Id == id).ForUpdate().FirstAsync();
+        rowA.Price = 99.99m;
+        await ctxA.SaveChangesAsync();
+        await txA.CommitAsync();
+
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        var rowB = await ctxB.Products.Where(p => p.Id == id).ForUpdate().FirstAsync();
+        rowB.Price.Should().Be(99.99m);
+        await txB.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForShare_Throws_LockingConfigurationException()
+    {
+        await using var ctx = CreateContext();
+        await ctx.Database.EnsureCreatedAsync();
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+
+        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1)
+            .ForShare()
+            .FirstOrDefaultAsync();
+
+        await act.Should().ThrowAsync<LockingConfigurationException>();
+
+        await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForUpdate_SkipLocked_Throws_LockingConfigurationException()
+    {
+        await using var ctx = CreateContext();
+        await ctx.Database.EnsureCreatedAsync();
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+
+        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.SkipLocked)
+            .FirstOrDefaultAsync();
+
+        await act.Should().ThrowAsync<LockingConfigurationException>();
 
         await tx.RollbackAsync();
     }

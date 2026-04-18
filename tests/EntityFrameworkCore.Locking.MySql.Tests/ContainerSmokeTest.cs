@@ -1,6 +1,7 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.MySql.Tests.Fixtures;
-using Xunit;
 using Microsoft.EntityFrameworkCore;
+using Xunit;
 
 namespace EntityFrameworkCore.Locking.MySql.Tests;
 
@@ -19,7 +20,7 @@ public class ContainerSmokeTest(MySqlFixture fixture)
         await ctx.Database.EnsureCreatedAsync();
 
         var canConnect = await ctx.Database.CanConnectAsync();
-        Assert.True(canConnect);
+        canConnect.Should().BeTrue();
     }
 }
 

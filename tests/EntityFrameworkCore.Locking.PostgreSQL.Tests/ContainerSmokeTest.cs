@@ -1,6 +1,7 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.PostgreSQL.Tests.Fixtures;
-using Xunit;
 using Microsoft.EntityFrameworkCore;
+using Xunit;
 
 namespace EntityFrameworkCore.Locking.PostgreSQL.Tests;
 
@@ -18,7 +19,7 @@ public class ContainerSmokeTest(PostgresFixture fixture)
         await ctx.Database.EnsureCreatedAsync();
 
         var canConnect = await ctx.Database.CanConnectAsync();
-        Assert.True(canConnect);
+        canConnect.Should().BeTrue();
     }
 }
 

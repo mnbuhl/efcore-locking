@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Internal;
 using Xunit;
 
@@ -9,7 +10,7 @@ public class LockContextTests
     public void Current_DefaultsToNull()
     {
         LockContext.Current = null;
-        Assert.Null(LockContext.Current);
+        LockContext.Current.Should().BeNull();
     }
 
     [Fact]
@@ -17,7 +18,7 @@ public class LockContextTests
     {
         var options = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.Wait };
         LockContext.Current = options;
-        Assert.Equal(options, LockContext.Current);
+        LockContext.Current.Should().Be(options);
         LockContext.Current = null;
     }
 
@@ -30,7 +31,7 @@ public class LockContextTests
         await Task.Run(() => { otherContextValue = LockContext.Current; });
 
         // AsyncLocal flows DOWN into child tasks but changes in child don't affect parent
-        Assert.NotNull(LockContext.Current);
+        LockContext.Current.Should().NotBeNull();
         LockContext.Current = null;
     }
 }

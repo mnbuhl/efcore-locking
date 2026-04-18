@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.PostgreSQL;
 using Xunit;
 
@@ -17,35 +18,45 @@ public class SqlGenerationTests
     public void GenerateLockClause_ReturnsExpectedSql(LockMode mode, LockBehavior behavior, string expected)
     {
         var options = new LockOptions { Mode = mode, Behavior = behavior };
-        Assert.Equal(expected, _generator.GenerateLockClause(options));
+        _generator.GenerateLockClause(options).Should().Be(expected);
     }
 
     [Fact]
     public void GeneratePreStatementSql_WithTimeout_ReturnsSetLocalLockTimeout()
     {
         var options = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.Wait, Timeout = TimeSpan.FromMilliseconds(500) };
-        var sql = _generator.GeneratePreStatementSql(options);
-        Assert.Equal("SET LOCAL lock_timeout = '500ms'", sql);
+        _generator.GeneratePreStatementSql(options).Should().Be("SET LOCAL lock_timeout = '500ms'");
     }
 
     [Fact]
     public void GeneratePreStatementSql_NoTimeout_ReturnsNull()
     {
         var options = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.Wait };
-        Assert.Null(_generator.GeneratePreStatementSql(options));
+        _generator.GeneratePreStatementSql(options).Should().BeNull();
     }
 
     [Fact]
     public void GeneratePreStatementSql_NoWait_ReturnsNull()
     {
         var options = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.NoWait };
-        Assert.Null(_generator.GeneratePreStatementSql(options));
+        _generator.GeneratePreStatementSql(options).Should().BeNull();
     }
 
     [Fact]
     public void SupportsLockOptions_AlwaysTrue()
     {
-        var options = new LockOptions { Mode = LockMode.ForUpdate };
-        Assert.True(_generator.SupportsLockOptions(options));
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate }).Should().BeTrue();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare }).Should().BeTrue();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked }).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(1000, "1000ms")]
+    [InlineData(250, "250ms")]
+    [InlineData(5000, "5000ms")]
+    public void GeneratePreStatementSql_VariousTimeouts_CorrectMs(int ms, string expectedSuffix)
+    {
+        var options = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.Wait, Timeout = TimeSpan.FromMilliseconds(ms) };
+        _generator.GeneratePreStatementSql(options).Should().Be($"SET LOCAL lock_timeout = '{expectedSuffix}'");
     }
 }

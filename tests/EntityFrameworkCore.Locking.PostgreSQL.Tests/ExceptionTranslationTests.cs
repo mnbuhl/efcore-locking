@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.PostgreSQL;
 using Npgsql;
@@ -16,8 +17,8 @@ public class ExceptionTranslationTests
     {
         var pgEx = CreatePostgresException("40P01");
         var result = _translator.Translate(pgEx);
-        Assert.IsType<DeadlockException>(result);
-        Assert.Same(pgEx, result!.InnerException);
+        result.Should().BeOfType<DeadlockException>();
+        result!.InnerException.Should().BeSameAs(pgEx);
     }
 
     [Fact]
@@ -25,21 +26,21 @@ public class ExceptionTranslationTests
     {
         var pgEx = CreatePostgresException("55P03");
         var result = _translator.Translate(pgEx);
-        Assert.IsType<LockTimeoutException>(result);
-        Assert.Same(pgEx, result!.InnerException);
+        result.Should().BeOfType<LockTimeoutException>();
+        result!.InnerException.Should().BeSameAs(pgEx);
     }
 
     [Fact]
     public void Translate_UnrelatedError_ReturnsNull()
     {
         var pgEx = CreatePostgresException("23505");
-        Assert.Null(_translator.Translate(pgEx));
+        _translator.Translate(pgEx).Should().BeNull();
     }
 
     [Fact]
     public void Translate_NonPostgresException_ReturnsNull()
     {
-        Assert.Null(_translator.Translate(new Exception("random error")));
+        _translator.Translate(new Exception("random error")).Should().BeNull();
     }
 
     [Fact]
@@ -47,23 +48,26 @@ public class ExceptionTranslationTests
     {
         var pgEx = CreatePostgresException("40P01");
         var wrapper = new Exception("wrapper", pgEx);
-        var result = _translator.Translate(wrapper);
-        Assert.IsType<DeadlockException>(result);
+        _translator.Translate(wrapper).Should().BeOfType<DeadlockException>();
+    }
+
+    [Fact]
+    public void Translate_QueryCanceled_ReturnsNull()
+    {
+        // 57014 = query_canceled — not a lock error, should not translate
+        _translator.Translate(CreatePostgresException("57014")).Should().BeNull();
     }
 
     private static PostgresException CreatePostgresException(string sqlState)
     {
-        // PostgresException has no public constructor; use uninitialized object + field injection
         var ex = (PostgresException)RuntimeHelpers.GetUninitializedObject(typeof(PostgresException));
 
-        // SqlState is an auto-property; its backing field is "<SqlState>k__BackingField"
         var field = typeof(PostgresException).GetField(
             "<SqlState>k__BackingField",
             BindingFlags.NonPublic | BindingFlags.Instance);
 
         if (field is null)
         {
-            // Fallback: search for any field whose name contains "SqlState" case-insensitively
             field = typeof(PostgresException)
                 .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
                 .FirstOrDefault(f => f.Name.Contains("SqlState", StringComparison.OrdinalIgnoreCase)

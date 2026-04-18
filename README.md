@@ -194,6 +194,15 @@ catch (LockingConfigurationException ex)
 
 `AsSplitQuery()` combined with locking throws `LockingConfigurationException` — use regular `Include()` instead (on PostgreSQL, `FOR UPDATE OF` is emitted automatically to handle outer joins).
 
+## Supported database versions
+
+| Database | Minimum version | Notes |
+|----------|----------------|-------|
+| PostgreSQL | **14** | Default minimum for Npgsql 8.x. PG 12+ works if you call `.SetPostgresVersion(12, 0)` in `UseNpgsql`. All locking features (`FOR NO KEY UPDATE`, `FOR KEY SHARE`, `SKIP LOCKED`, `NOWAIT`) have been available since PG 9.3/9.5. |
+| MySQL | **8.0** | `FOR SHARE`, `SKIP LOCKED`, and `NOWAIT` were introduced in MySQL 8.0.1. MySQL 5.7 is not supported. |
+| MariaDB | **10.6** | `SKIP LOCKED` requires 10.6+. `NOWAIT` requires 10.3+. `ForShare` emits `LOCK IN SHARE MODE` (MariaDB does not support the `FOR SHARE` syntax). |
+| SQL Server | **2019** | All hints (`UPDLOCK`, `HOLDLOCK`, `ROWLOCK`, `READPAST`) and `SET LOCK_TIMEOUT` are available on all supported versions. Azure SQL Database is also supported. |
+
 ## Target frameworks
 
 `net8.0`, `net9.0`, `net10.0`

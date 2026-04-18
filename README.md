@@ -116,11 +116,15 @@ catch (DeadlockException ex)
 |---------|-----------|-------|-----------|
 | `ForUpdate` | ✓ | ✓ | ✓ |
 | `ForShare` | ✓ | ✓ | ✗ |
+| `ForNoKeyUpdate` | ✓ | ✗ | ✗ |
+| `ForKeyShare` | ✓ | ✗ | ✗ |
 | `SkipLocked` | ✓ | ✓ | ✓ (via `READPAST`) |
 | `NoWait` | ✓ | ✓ | ✓ |
 | Wait with timeout | ✓ (ms) | ✓ (ceil to 1s) | ✓ (ms) |
 
 SQL Server does not support `FOR SHARE`. Using it throws `LockingConfigurationException`.
+
+`ForNoKeyUpdate` and `ForKeyShare` are PostgreSQL-only extension methods available when the `EntityFrameworkCore.Locking.PostgreSQL` package is installed.
 
 **SQL Server `SkipLocked` limitation:** SQL Server uses `WITH (UPDLOCK, ROWLOCK, READPAST)` instead of `SKIP LOCKED`. `READPAST` only skips rows held under row-level or page-level locks. Rows held under a table-level lock are blocked rather than skipped. For typical queue-processing workloads (row locks) this behaves identically to `SKIP LOCKED` on PostgreSQL/MySQL.
 

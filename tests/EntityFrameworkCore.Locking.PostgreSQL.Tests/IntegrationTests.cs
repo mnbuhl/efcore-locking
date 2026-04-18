@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
+using EntityFrameworkCore.Locking.PostgreSQL;
 using EntityFrameworkCore.Locking.PostgreSQL.Tests.Fixtures;
 using EntityFrameworkCore.Locking.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -348,6 +349,116 @@ public class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
         (await ctxB.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync())
             .Should()
             .NotBeNull();
+
+        await txA.RollbackAsync();
+        await txB.RollbackAsync();
+    }
+
+    // --- FOR NO KEY UPDATE / FOR KEY SHARE ---
+
+    [Fact]
+    public void ForNoKeyUpdate_GeneratesExactSql()
+    {
+        using var ctx = CreateContext();
+
+        ctx.Products.Where(p => p.Id == 1).ForNoKeyUpdate().ToQueryString()
+            .Should().Contain("FOR NO KEY UPDATE");
+    }
+
+    [Fact]
+    public void ForNoKeyUpdate_NoWait_GeneratesExactSql()
+    {
+        using var ctx = CreateContext();
+
+        ctx.Products.Where(p => p.Id == 1).ForNoKeyUpdate(LockBehavior.NoWait).ToQueryString()
+            .Should().Contain("FOR NO KEY UPDATE NOWAIT");
+    }
+
+    [Fact]
+    public void ForNoKeyUpdate_SkipLocked_GeneratesExactSql()
+    {
+        using var ctx = CreateContext();
+
+        ctx.Products.Where(p => p.Id == 1).ForNoKeyUpdate(LockBehavior.SkipLocked).ToQueryString()
+            .Should().Contain("FOR NO KEY UPDATE SKIP LOCKED");
+    }
+
+    [Fact]
+    public void ForKeyShare_GeneratesExactSql()
+    {
+        using var ctx = CreateContext();
+
+        ctx.Products.Where(p => p.Id == 1).ForKeyShare().ToQueryString()
+            .Should().Contain("FOR KEY SHARE");
+    }
+
+    [Fact]
+    public void ForKeyShare_NoWait_GeneratesExactSql()
+    {
+        using var ctx = CreateContext();
+
+        ctx.Products.Where(p => p.Id == 1).ForKeyShare(LockBehavior.NoWait).ToQueryString()
+            .Should().Contain("FOR KEY SHARE NOWAIT");
+    }
+
+    [Fact]
+    public async Task ForNoKeyUpdate_WithTransaction_ExecutesSuccessfully()
+    {
+        await using var ctx = CreateContext();
+        var (_, id) = await SeedAsync(ctx);
+
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+        var product = await ctx.Products.Where(p => p.Id == id).ForNoKeyUpdate().FirstOrDefaultAsync();
+
+        product.Should().NotBeNull();
+        await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForKeyShare_WithTransaction_ExecutesSuccessfully()
+    {
+        await using var ctx = CreateContext();
+        var (_, id) = await SeedAsync(ctx);
+
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+        var product = await ctx.Products.Where(p => p.Id == id).ForKeyShare().FirstOrDefaultAsync();
+
+        product.Should().NotBeNull();
+        await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForKeyShare_TwoConcurrentReaders_BothSucceed()
+    {
+        await using var ctx = CreateContext();
+        var (_, id) = await SeedAsync(ctx);
+
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        (await ctxA.Products.Where(p => p.Id == id).ForKeyShare().FirstOrDefaultAsync()).Should().NotBeNull();
+
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        (await ctxB.Products.Where(p => p.Id == id).ForKeyShare().FirstOrDefaultAsync()).Should().NotBeNull();
+
+        await txA.RollbackAsync();
+        await txB.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForNoKeyUpdate_AllowsForKeyShare_ConcurrentReaders()
+    {
+        // FOR NO KEY UPDATE does not block FOR KEY SHARE — both should succeed concurrently
+        await using var ctx = CreateContext();
+        var (_, id) = await SeedAsync(ctx);
+
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        (await ctxA.Products.Where(p => p.Id == id).ForNoKeyUpdate().FirstOrDefaultAsync()).Should().NotBeNull();
+
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        (await ctxB.Products.Where(p => p.Id == id).ForKeyShare().FirstOrDefaultAsync()).Should().NotBeNull();
 
         await txA.RollbackAsync();
         await txB.RollbackAsync();

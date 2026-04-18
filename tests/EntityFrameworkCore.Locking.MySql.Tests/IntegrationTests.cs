@@ -14,7 +14,7 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
     {
         await using var ctx = CreateContext();
         await ctx.Database.EnsureCreatedAsync();
-        // DELETE in FK-safe order (children before parents); AUTO_INCREMENT resets on next insert
+        // DELETE in FK-safe order; each call uses its own connection so FOREIGN_KEY_CHECKS is session-scoped and unreliable
         await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `OrderLines`");
         await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `Products`");
         await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `Categories`");
@@ -25,19 +25,30 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
     private TestDbContext CreateContext()
     {
         var serverVersion = ServerVersion.AutoDetect(fixture.ConnectionString);
-        return new(new DbContextOptionsBuilder<TestDbContext>()
-            .UseMySql(fixture.ConnectionString, serverVersion)
-            .UseLocking()
-            .Options);
+        return new(
+            new DbContextOptionsBuilder<TestDbContext>()
+                .UseMySql(fixture.ConnectionString, serverVersion)
+                .UseLocking()
+                .Options
+        );
     }
 
     private async Task<(int categoryId, int productId)> SeedAsync(
-        TestDbContext ctx, string categoryName = "Electronics", string productName = "Widget")
+        TestDbContext ctx,
+        string categoryName = "Electronics",
+        string productName = "Widget"
+    )
     {
         var cat = new Category { Name = categoryName };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
-        var p = new Product { Name = productName, Price = 9.99m, Stock = 10, CategoryId = cat.Id };
+        var p = new Product
+        {
+            Name = productName,
+            Price = 9.99m,
+            Stock = 10,
+            CategoryId = cat.Id,
+        };
         ctx.Products.Add(p);
         await ctx.SaveChangesAsync();
         return (cat.Id, p.Id);
@@ -64,7 +75,8 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
     {
         await using var ctx = CreateContext();
 
-        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
+        Func<Task> act = async () =>
+            await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -74,7 +86,9 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         await using var ctx = CreateContext();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        (await ctx.Products.Where(p => p.Id == int.MaxValue).ForUpdate().FirstOrDefaultAsync()).Should().BeNull();
+        (await ctx.Products.Where(p => p.Id == int.MaxValue).ForUpdate().FirstOrDefaultAsync())
+            .Should()
+            .BeNull();
         await tx.RollbackAsync();
     }
 
@@ -85,7 +99,13 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         var cat = new Category { Name = "NoLock" };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
-        var p = new Product { Name = "NoLock", Price = 1m, Stock = 1, CategoryId = cat.Id };
+        var p = new Product
+        {
+            Name = "NoLock",
+            Price = 1m,
+            Stock = 1,
+            CategoryId = cat.Id,
+        };
         ctx.Products.Add(p);
         await ctx.SaveChangesAsync();
 
@@ -113,8 +133,11 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.NoWait).ToQueryString()
-            .Should().Contain("FOR UPDATE NOWAIT");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.NoWait)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR UPDATE NOWAIT");
         await tx.RollbackAsync();
     }
 
@@ -124,8 +147,11 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.SkipLocked).ToQueryString()
-            .Should().Contain("FOR UPDATE SKIP LOCKED");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.SkipLocked)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR UPDATE SKIP LOCKED");
         await tx.RollbackAsync();
     }
 
@@ -150,8 +176,11 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         var (_, id) = await SeedAsync(ctx, categoryName: "Nav");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var product = await ctx.Products.Include(p => p.Category)
-            .Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
+        var product = await ctx
+            .Products.Include(p => p.Category)
+            .Where(p => p.Id == id)
+            .ForUpdate()
+            .FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
         product!.Category.Name.Should().Be("Nav");
@@ -164,15 +193,25 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         await using var ctx = CreateContext();
         var (_, id) = await SeedAsync(ctx);
         for (var i = 1; i <= 3; i++)
-            ctx.OrderLines.Add(new OrderLine { ProductId = id, Quantity = i, UnitPrice = i * 1.5m });
+            ctx.OrderLines.Add(
+                new OrderLine
+                {
+                    ProductId = id,
+                    Quantity = i,
+                    UnitPrice = i * 1.5m,
+                }
+            );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var product = await ctx.Products.Include(p => p.OrderLines)
-            .Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
+        var product = await ctx
+            .Products.Include(p => p.OrderLines)
+            .Where(p => p.Id == id)
+            .ForUpdate()
+            .FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        product!.OrderLines.Should().HaveCount(3);
+        product.OrderLines.Should().HaveCount(3);
         await tx.RollbackAsync();
     }
 
@@ -186,9 +225,10 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         await SeedAsync(ctx, categoryName: "Other", productName: "Widget");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var products = await ctx.Products
-            .Where(p => p.Category.Name == "Gadgets")
-            .ForUpdate().ToListAsync();
+        var products = await ctx
+            .Products.Where(p => p.Category.Name == "Gadgets")
+            .ForUpdate()
+            .ToListAsync();
 
         products.Should().HaveCount(1);
         products[0].Name.Should().Be("Gizmo");
@@ -205,12 +245,24 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
         for (var i = 1; i <= 5; i++)
-            ctx.Products.Add(new Product { Name = $"P{i}", Price = i, Stock = i, CategoryId = cat.Id });
+            ctx.Products.Add(
+                new Product
+                {
+                    Name = $"P{i}",
+                    Price = i,
+                    Stock = i,
+                    CategoryId = cat.Id,
+                }
+            );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var page = await ctx.Products.Where(p => p.Category.Name == "Page")
-            .OrderBy(p => p.Price).Take(2).ForUpdate().ToListAsync();
+        var page = await ctx
+            .Products.Where(p => p.Category.Name == "Page")
+            .OrderBy(p => p.Price)
+            .Take(2)
+            .ForUpdate()
+            .ToListAsync();
 
         page.Should().HaveCount(2);
         page[0].Price.Should().BeLessThanOrEqualTo(page[1].Price);
@@ -241,11 +293,15 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
 
         await using var ctxA = CreateContext();
         await using var txA = await ctxA.Database.BeginTransactionAsync();
-        (await ctxA.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync()).Should().NotBeNull();
+        (await ctxA.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync())
+            .Should()
+            .NotBeNull();
 
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
-        (await ctxB.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync()).Should().NotBeNull();
+        (await ctxB.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync())
+            .Should()
+            .NotBeNull();
 
         await txA.RollbackAsync();
         await txB.RollbackAsync();
@@ -264,8 +320,11 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
 
-        Func<Task> act = async () => await ctxB.Products.Where(p => p.Id == id)
-            .ForShare(LockBehavior.NoWait).FirstOrDefaultAsync();
+        Func<Task> act = async () =>
+            await ctxB
+                .Products.Where(p => p.Id == id)
+                .ForShare(LockBehavior.NoWait)
+                .FirstOrDefaultAsync();
 
         await act.Should().ThrowAsync<LockTimeoutException>();
         await txA.RollbackAsync();
@@ -281,7 +340,8 @@ public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
         var (_, id) = await SeedAsync(ctx, productName: "Uncontended");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var row = await ctx.Products.Where(p => p.Id == id)
+        var row = await ctx
+            .Products.Where(p => p.Id == id)
             .ForUpdate(LockBehavior.Wait, TimeSpan.FromSeconds(1))
             .FirstOrDefaultAsync();
 

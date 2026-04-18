@@ -12,6 +12,8 @@ public sealed class PostgresLockSqlGenerator : ILockSqlGenerator
         {
             LockMode.ForUpdate => "FOR UPDATE",
             LockMode.ForShare => "FOR SHARE",
+            LockMode.ForNoKeyUpdate => "FOR NO KEY UPDATE",
+            LockMode.ForKeyShare => "FOR KEY SHARE",
             _ => throw new LockingConfigurationException($"Unsupported lock mode: {options.Mode}")
         };
 

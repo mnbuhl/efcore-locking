@@ -15,6 +15,12 @@ public class SqlGenerationTests
     [InlineData(LockMode.ForShare, LockBehavior.Wait, "FOR SHARE")]
     [InlineData(LockMode.ForShare, LockBehavior.SkipLocked, "FOR SHARE SKIP LOCKED")]
     [InlineData(LockMode.ForShare, LockBehavior.NoWait, "FOR SHARE NOWAIT")]
+    [InlineData(LockMode.ForNoKeyUpdate, LockBehavior.Wait, "FOR NO KEY UPDATE")]
+    [InlineData(LockMode.ForNoKeyUpdate, LockBehavior.SkipLocked, "FOR NO KEY UPDATE SKIP LOCKED")]
+    [InlineData(LockMode.ForNoKeyUpdate, LockBehavior.NoWait, "FOR NO KEY UPDATE NOWAIT")]
+    [InlineData(LockMode.ForKeyShare, LockBehavior.Wait, "FOR KEY SHARE")]
+    [InlineData(LockMode.ForKeyShare, LockBehavior.SkipLocked, "FOR KEY SHARE SKIP LOCKED")]
+    [InlineData(LockMode.ForKeyShare, LockBehavior.NoWait, "FOR KEY SHARE NOWAIT")]
     public void GenerateLockClause_ReturnsExpectedSql(LockMode mode, LockBehavior behavior, string expected)
     {
         var options = new LockOptions { Mode = mode, Behavior = behavior };
@@ -48,6 +54,8 @@ public class SqlGenerationTests
         _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate }).Should().BeTrue();
         _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare }).Should().BeTrue();
         _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked }).Should().BeTrue();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForNoKeyUpdate }).Should().BeTrue();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForKeyShare }).Should().BeTrue();
     }
 
     [Theory]

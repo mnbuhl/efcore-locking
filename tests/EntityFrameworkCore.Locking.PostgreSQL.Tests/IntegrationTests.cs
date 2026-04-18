@@ -181,6 +181,16 @@ public class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
             .Contain("FOR SHARE SKIP LOCKED");
     }
 
+    [Fact]
+    public void ForUpdate_WithLeftJoin_GeneratesForUpdateOf()
+    {
+        using var ctx = CreateContext();
+
+        var sql = ctx.Products.Include(p => p.OrderLines).Where(p => p.Id == 1).ForUpdate().ToQueryString();
+        sql.Should().Contain("FOR UPDATE OF");
+        sql.Should().NotContain("FOR UPDATE\n");
+    }
+
     // --- Include / navigation ---
 
     [Fact]
@@ -202,11 +212,10 @@ public class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ForUpdate_WithIncludeCollection_AsSplitQuery_LoadsOrderLines()
+    public async Task ForUpdate_WithIncludeCollection_LoadsOrderLines()
     {
-        // Single-query Include on a collection generates a LEFT JOIN, which PostgreSQL
-        // rejects with FOR UPDATE ("cannot be applied to the nullable side of an outer join").
-        // AsSplitQuery() issues two separate SELECTs so FOR UPDATE only applies to the root query.
+        // FOR UPDATE OF "alias" is emitted automatically when LEFT JOINs are detected,
+        // scoping the lock to the root table and allowing collection Includes to work.
         await using var ctx = CreateContext();
         var (_, id) = await SeedAsync(ctx);
         for (var i = 1; i <= 3; i++)
@@ -224,7 +233,6 @@ public class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
         var product = await ctx
             .Products.Include(p => p.OrderLines)
             .Where(p => p.Id == id)
-            .AsSplitQuery()
             .ForUpdate()
             .FirstOrDefaultAsync();
 

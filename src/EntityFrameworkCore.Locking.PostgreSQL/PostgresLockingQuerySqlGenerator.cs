@@ -48,15 +48,13 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
 
         UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);
 
-        var preStatement = _lockSqlGenerator.GeneratePreStatementSql(lockOptions);
-        if (preStatement is not null)
-        {
-            // Pre-statement SQL (SET LOCAL lock_timeout) is emitted via the interceptor mechanism;
-            // at VisitSelect time the SQL builder is mid-stream. We store it for the interceptor.
-            // For M2 (basic ForUpdate only), no pre-statement is needed.
-        }
+        // When the query has LEFT JOINs (e.g. collection Includes), a bare FOR UPDATE/SHARE
+        // is rejected by PostgreSQL ("cannot be applied to the nullable side of an outer join").
+        // FOR UPDATE OF "alias" scopes the lock to the root table only, which is valid.
+        var hasLeftJoin = selectExpression.Tables.Skip(1).OfType<LeftJoinExpression>().Any();
+        var rootAlias = hasLeftJoin ? selectExpression.Tables[0].Alias : null;
 
-        var clause = _lockSqlGenerator.GenerateLockClause(lockOptions);
+        var clause = BuildLockClause(lockOptions, rootAlias);
         if (clause is not null)
         {
             Sql.AppendLine();
@@ -64,5 +62,29 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
         }
 
         return result;
+    }
+
+    private static string BuildLockClause(LockOptions lockOptions, string? tableAlias)
+    {
+        var mode = lockOptions.Mode switch
+        {
+            LockMode.ForUpdate => "FOR UPDATE",
+            LockMode.ForShare => "FOR SHARE",
+            LockMode.ForNoKeyUpdate => "FOR NO KEY UPDATE",
+            LockMode.ForKeyShare => "FOR KEY SHARE",
+            _ => throw new LockingConfigurationException($"Unsupported lock mode: {lockOptions.Mode}")
+        };
+
+        var of = tableAlias is not null ? $" OF \"{tableAlias}\"" : string.Empty;
+
+        var modifier = lockOptions.Behavior switch
+        {
+            LockBehavior.Wait => string.Empty,
+            LockBehavior.SkipLocked => " SKIP LOCKED",
+            LockBehavior.NoWait => " NOWAIT",
+            _ => throw new LockingConfigurationException($"Unsupported lock behavior: {lockOptions.Behavior}")
+        };
+
+        return $"{mode}{of}{modifier}";
     }
 }

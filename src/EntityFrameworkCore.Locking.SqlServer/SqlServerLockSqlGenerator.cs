@@ -10,10 +10,8 @@ public sealed class SqlServerLockSqlGenerator : ILockSqlGenerator
 
     public bool SupportsLockOptions(LockOptions options)
     {
-        // SQL Server does not support FOR SHARE or SKIP LOCKED
+        // SQL Server does not support FOR SHARE
         if (options.Mode == LockMode.ForShare)
-            return false;
-        if (options.Behavior == LockBehavior.SkipLocked)
             return false;
         return true;
     }
@@ -32,6 +30,13 @@ public sealed class SqlServerLockSqlGenerator : ILockSqlGenerator
 
     internal static string BuildTableHint(LockOptions options)
     {
+        if (options.Behavior == LockBehavior.SkipLocked)
+            // READPAST: skip rows locked by other transactions (SQL Server's SKIP LOCKED equivalent).
+            // HOLDLOCK is intentionally omitted — it implies SERIALIZABLE range locks which conflict
+            // with skip-locked semantics. Limitation: READPAST only skips row/page locks; rows held
+            // under a table-level lock are blocked rather than skipped.
+            return "WITH (UPDLOCK, ROWLOCK, READPAST)";
+
         // UPDLOCK: upgrade to update lock; HOLDLOCK: hold until end of tx (= SERIALIZABLE for this row);
         // ROWLOCK: prefer row-level granularity
         return "WITH (UPDLOCK, HOLDLOCK, ROWLOCK)";

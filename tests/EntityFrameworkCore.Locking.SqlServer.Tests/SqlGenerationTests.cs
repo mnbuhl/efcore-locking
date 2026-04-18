@@ -53,9 +53,16 @@ public class SqlGenerationTests
     }
 
     [Fact]
-    public void SupportsLockOptions_SkipLocked_ReturnsFalse()
+    public void SupportsLockOptions_SkipLocked_ReturnsTrue()
     {
-        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked }).Should().BeFalse();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked }).Should().BeTrue();
+    }
+
+    [Fact]
+    public void GenerateLockClause_SkipLocked_ReturnsReadPastHint()
+    {
+        var opts = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked };
+        _generator.GenerateLockClause(opts).Should().Be("WITH (UPDLOCK, ROWLOCK, READPAST)");
     }
 
     [Fact]

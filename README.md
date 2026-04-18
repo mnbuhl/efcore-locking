@@ -77,7 +77,7 @@ await tx.CommitAsync();
 |--------|--------------|
 | `ForUpdate()` | `FOR UPDATE` / `WITH (UPDLOCK, HOLDLOCK, ROWLOCK)` |
 | `ForUpdate(LockBehavior.NoWait)` | `FOR UPDATE NOWAIT` / `SET LOCK_TIMEOUT 0` |
-| `ForUpdate(LockBehavior.SkipLocked)` | `FOR UPDATE SKIP LOCKED` |
+| `ForUpdate(LockBehavior.SkipLocked)` | `FOR UPDATE SKIP LOCKED` (PG/MySQL) / `WITH (UPDLOCK, ROWLOCK, READPAST)` (SQL Server) |
 | `ForUpdate(LockBehavior.Wait, timeout)` | `SET LOCAL lock_timeout = '500ms'` (PG) / `SET SESSION innodb_lock_wait_timeout` (MySQL) / `SET LOCK_TIMEOUT 500` (SQL Server) |
 | `ForShare()` | `FOR SHARE` (PostgreSQL/MySQL only) |
 
@@ -116,11 +116,13 @@ catch (DeadlockException ex)
 |---------|-----------|-------|-----------|
 | `ForUpdate` | ✓ | ✓ | ✓ |
 | `ForShare` | ✓ | ✓ | ✗ |
-| `SkipLocked` | ✓ | ✓ | ✗ |
+| `SkipLocked` | ✓ | ✓ | ✓ (via `READPAST`) |
 | `NoWait` | ✓ | ✓ | ✓ |
 | Wait with timeout | ✓ (ms) | ✓ (ceil to 1s) | ✓ (ms) |
 
-SQL Server does not support `FOR SHARE` or `SKIP LOCKED`. Using these throws `LockingConfigurationException`.
+SQL Server does not support `FOR SHARE`. Using it throws `LockingConfigurationException`.
+
+**SQL Server `SkipLocked` limitation:** SQL Server uses `WITH (UPDLOCK, ROWLOCK, READPAST)` instead of `SKIP LOCKED`. `READPAST` only skips rows held under row-level or page-level locks. Rows held under a table-level lock are blocked rather than skipped. For typical queue-processing workloads (row locks) this behaves identically to `SKIP LOCKED` on PostgreSQL/MySQL.
 
 ## Unsupported query shapes
 

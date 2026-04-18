@@ -130,18 +130,27 @@ public class ConcurrencyTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task ForUpdate_SkipLocked_Throws_LockingConfigurationException()
+    public async Task ForUpdate_SkipLocked_SecondTransaction_SkipsLockedRow()
     {
-        await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
-        await using var tx = await ctx.Database.BeginTransactionAsync();
+        await using var ctxSeed = CreateContext();
+        await ctxSeed.Database.EnsureCreatedAsync();
+        var id = await SeedAsync(ctxSeed, "SkipLocked Widget");
 
-        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1)
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        var lockedRow = await ctxA.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
+        lockedRow.Should().NotBeNull();
+
+        // READPAST skips rows locked by other transactions
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        var skipped = await ctxB.Products.Where(p => p.Id == id)
             .ForUpdate(LockBehavior.SkipLocked)
             .FirstOrDefaultAsync();
 
-        await act.Should().ThrowAsync<LockingConfigurationException>();
+        skipped.Should().BeNull();
 
-        await tx.RollbackAsync();
+        await txA.RollbackAsync();
+        await txB.RollbackAsync();
     }
 }

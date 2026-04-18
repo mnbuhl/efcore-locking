@@ -88,17 +88,16 @@ public class IntegrationTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task ForUpdate_SkipLocked_ThrowsLockingConfigurationException()
+    public async Task ForUpdate_SkipLocked_GeneratesReadPastHint()
     {
         await using var ctx = CreateContext();
         await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        Func<Task> act = async () => await ctx.Products.Where(x => x.Id == 1)
-            .ForUpdate(LockBehavior.SkipLocked)
-            .FirstOrDefaultAsync();
+        var sql = ctx.Products.Where(x => x.Id == 1).ForUpdate(LockBehavior.SkipLocked).ToQueryString();
 
-        await act.Should().ThrowAsync<LockingConfigurationException>();
+        sql.Should().Contain("WITH (UPDLOCK, ROWLOCK, READPAST)");
+        sql.Should().NotContain("HOLDLOCK");
         await tx.RollbackAsync();
     }
 

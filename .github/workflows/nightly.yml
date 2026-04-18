@@ -1,0 +1,64 @@
+name: Nightly (EF Core preview compatibility)
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  test-preview:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dotnet: ['8.0.x', '9.0.x', '10.0.x']
+        provider: [postgres, mysql]
+        ef-channel: [stable, preview]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ matrix.dotnet }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+
+      - name: Add EF Core nightly feed
+        if: matrix.ef-channel == 'preview'
+        run: >
+          dotnet nuget add source
+          https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-tools/nuget/v3/index.json
+          --name dotnet-nightly
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test (PostgreSQL)
+        if: matrix.provider == 'postgres'
+        run: >
+          dotnet test tests/EntityFrameworkCore.Locking.PostgreSQL.Tests
+          --no-restore --configuration Release
+          --logger "console;verbosity=normal"
+
+      - name: Test (MySQL)
+        if: matrix.provider == 'mysql'
+        run: >
+          dotnet test tests/EntityFrameworkCore.Locking.MySql.Tests
+          --no-restore --configuration Release
+          --logger "console;verbosity=normal"
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Nightly CI failure: .NET ${{ matrix.dotnet }}, ${context.matrix.provider}, EF ${context.matrix['ef-channel']}`,
+              body: `Nightly compatibility run failed. See [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
+              labels: ['nightly-failure', 'ci']
+            })

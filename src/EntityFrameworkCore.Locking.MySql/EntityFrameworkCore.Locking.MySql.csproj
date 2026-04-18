@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>EntityFrameworkCore.Locking.MySql</PackageId>
+    <Description>MySQL (Pomelo) provider for EntityFrameworkCore.Locking.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EntityFrameworkCore.Locking\EntityFrameworkCore.Locking.csproj" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dotnet: ['8.0.x', '9.0.x', '10.0.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ matrix.dotnet }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+  test-postgres:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dotnet: ['8.0.x', '9.0.x', '10.0.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ matrix.dotnet }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Test (PostgreSQL)
+        run: >
+          dotnet test tests/EntityFrameworkCore.Locking.PostgreSQL.Tests
+          --no-restore --configuration Release
+          --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
+          --logger "console;verbosity=normal"
+
+  test-mysql:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dotnet: ['8.0.x', '9.0.x', '10.0.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ matrix.dotnet }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Test (MySQL)
+        run: >
+          dotnet test tests/EntityFrameworkCore.Locking.MySql.Tests
+          --no-restore --configuration Release
+          --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
+          --logger "console;verbosity=normal"
+
+  test-core:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dotnet: ['8.0.x', '9.0.x', '10.0.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ matrix.dotnet }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Test (Core)
+        run: >
+          dotnet test tests/EntityFrameworkCore.Locking.Tests
+          --no-restore --configuration Release
+          --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
+          --logger "console;verbosity=normal"

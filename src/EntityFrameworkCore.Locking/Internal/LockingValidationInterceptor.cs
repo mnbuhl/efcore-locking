@@ -40,8 +40,9 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         CommandExecutedEventData eventData,
         DbDataReader result)
     {
+        var wasLocking = LockContext.Current is not null;
         LockContext.Current = null;
-        return result;
+        return wasLocking ? WrapReader(result, eventData.Context) : result;
     }
 
     public override ValueTask<DbDataReader> ReaderExecutedAsync(
@@ -50,8 +51,11 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         DbDataReader result,
         CancellationToken cancellationToken = default)
     {
+        var wasLocking = LockContext.Current is not null;
         LockContext.Current = null;
-        return new ValueTask<DbDataReader>(result);
+        return wasLocking
+            ? new ValueTask<DbDataReader>(WrapReader(result, eventData.Context))
+            : new ValueTask<DbDataReader>(result);
     }
 
     public override void CommandFailed(DbCommand command, CommandErrorEventData eventData)
@@ -88,6 +92,14 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         var preSql = provider.RowLockGenerator.GeneratePreStatementSql(lockOptions);
         if (preSql is not null && !command.CommandText.StartsWith(preSql, StringComparison.Ordinal))
             command.CommandText = preSql + ";\n" + command.CommandText;
+    }
+
+    private static DbDataReader WrapReader(DbDataReader reader, DbContext? context)
+    {
+        if (context is null)
+            return reader;
+        var translator = ((IInfrastructure<IServiceProvider>)context).Instance.GetService<IExceptionTranslator>();
+        return translator is not null ? new TranslatingDbDataReader(reader, translator) : reader;
     }
 
     private static void TranslateAndRethrow(Exception? exception, DbContext? context)

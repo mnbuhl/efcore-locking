@@ -202,10 +202,11 @@ public class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ForUpdate_ThenLoadCollection_LocksRowAndLoadsOrderLines()
+    public async Task ForUpdate_WithIncludeCollection_AsSplitQuery_LoadsOrderLines()
     {
-        // PostgreSQL prohibits FOR UPDATE on the nullable side of a LEFT JOIN (collections).
-        // The correct pattern: lock the row first, then load the collection separately.
+        // Single-query Include on a collection generates a LEFT JOIN, which PostgreSQL
+        // rejects with FOR UPDATE ("cannot be applied to the nullable side of an outer join").
+        // AsSplitQuery() issues two separate SELECTs so FOR UPDATE only applies to the root query.
         await using var ctx = CreateContext();
         var (_, id) = await SeedAsync(ctx);
         for (var i = 1; i <= 3; i++)
@@ -220,11 +221,15 @@ public class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var product = await ctx.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
-        product.Should().NotBeNull();
+        var product = await ctx
+            .Products.Include(p => p.OrderLines)
+            .Where(p => p.Id == id)
+            .AsSplitQuery()
+            .ForUpdate()
+            .FirstOrDefaultAsync();
 
-        await ctx.Entry(product).Collection(p => p.OrderLines).LoadAsync();
-        product.OrderLines.Should().HaveCount(3);
+        product.Should().NotBeNull();
+        product!.OrderLines.Should().HaveCount(3);
         await tx.RollbackAsync();
     }
 

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>EntityFrameworkCore.Locking.PostgreSQL</PackageId>
     <Description>PostgreSQL (Npgsql) provider for EntityFrameworkCore.Locking.</Description>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -12,7 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EntityFrameworkCore.Locking\EntityFrameworkCore.Locking.csproj" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[8.0.0, )" />
   </ItemGroup>
 
 </Project>

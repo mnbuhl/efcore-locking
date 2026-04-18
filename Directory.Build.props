@@ -21,10 +21,13 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- CS1591: missing XML doc — self-documenting public surface (exception ctors, record properties) -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Library projects: only audit direct dependencies; transitive CVEs are the consumer's responsibility -->
+    <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
     <IsPackable>false</IsPackable>
+    <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 
   <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests')) and Exists('$(MSBuildThisFileDirectory)README.md')">

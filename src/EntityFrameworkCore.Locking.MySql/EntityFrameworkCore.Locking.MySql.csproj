@@ -3,11 +3,12 @@
   <PropertyGroup>
     <PackageId>EntityFrameworkCore.Locking.MySql</PackageId>
     <Description>MySQL (Pomelo) provider for EntityFrameworkCore.Locking.</Description>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EntityFrameworkCore.Locking\EntityFrameworkCore.Locking.csproj" />
-    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="[8.0.0, )" />
   </ItemGroup>
 
 </Project>

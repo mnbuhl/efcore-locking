@@ -8,8 +8,19 @@ using Xunit;
 namespace EntityFrameworkCore.Locking.MySql.Tests;
 
 [Collection("MySql")]
-public class ConcurrencyTests(MySqlFixture fixture)
+public class ConcurrencyTests(MySqlFixture fixture) : IAsyncLifetime
 {
+    public async Task InitializeAsync()
+    {
+        await using var ctx = CreateContext();
+        await ctx.Database.EnsureCreatedAsync();
+        await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `OrderLines`");
+        await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `Products`");
+        await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `Categories`");
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
     private TestDbContext CreateContext()
     {
         var serverVersion = ServerVersion.AutoDetect(fixture.ConnectionString);
@@ -21,7 +32,6 @@ public class ConcurrencyTests(MySqlFixture fixture)
 
     private static async Task<int> SeedAsync(TestDbContext ctx, string name = "Widget")
     {
-        await ctx.Database.EnsureCreatedAsync();
         var cat = new Category { Name = "Default" };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
@@ -50,6 +60,50 @@ public class ConcurrencyTests(MySqlFixture fixture)
     }
 
     [Fact]
+    public async Task ForUpdate_SkipLocked_MultipleRows_ReturnsOnlyUnlockedRows()
+    {
+        await using var ctxSeed = CreateContext();
+        var id1 = await SeedAsync(ctxSeed, "Locked");
+        var id2 = await SeedAsync(ctxSeed, "Free");
+
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        await ctxA.Products.Where(p => p.Id == id1).ForUpdate().FirstOrDefaultAsync();
+
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        var results = await ctxB.Products
+            .Where(p => p.Id == id1 || p.Id == id2)
+            .ForUpdate(LockBehavior.SkipLocked)
+            .ToListAsync();
+
+        results.Should().HaveCount(1);
+        results[0].Id.Should().Be(id2);
+
+        await txA.RollbackAsync();
+        await txB.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForUpdate_MultipleRows_AllLocked_SkipLocked_ReturnsEmpty()
+    {
+        await using var ctxSeed = CreateContext();
+        var id1 = await SeedAsync(ctxSeed, "Bulk1");
+        var id2 = await SeedAsync(ctxSeed, "Bulk2");
+
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        (await ctxA.Products.Where(p => p.Id == id1 || p.Id == id2).ForUpdate().ToListAsync()).Should().HaveCount(2);
+
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        (await ctxB.Products.Where(p => p.Id == id1 || p.Id == id2).ForUpdate(LockBehavior.SkipLocked).ToListAsync()).Should().BeEmpty();
+
+        await txA.RollbackAsync();
+        await txB.RollbackAsync();
+    }
+
+    [Fact]
     public async Task ForUpdate_NoWait_SecondTransaction_ThrowsLockTimeoutException()
     {
         await using var ctxSeed = CreateContext();
@@ -61,7 +115,6 @@ public class ConcurrencyTests(MySqlFixture fixture)
 
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
-
         Func<Task> act = async () => await ctxB.Products.Where(p => p.Id == id)
             .ForUpdate(LockBehavior.NoWait).FirstOrDefaultAsync();
 
@@ -96,18 +149,24 @@ public class ConcurrencyTests(MySqlFixture fixture)
     }
 
     [Fact]
-    public async Task ForUpdate_UnionQuery_ThrowsLockingConfigurationException()
+    public async Task ForUpdate_AfterRollback_LockIsReleased_SecondTransactionSucceedsWithNoWait()
     {
-        await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
-        await using var tx = await ctx.Database.BeginTransactionAsync();
+        await using var ctxSeed = CreateContext();
+        var id = await SeedAsync(ctxSeed, "Rollback Release");
 
-        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1)
-            .Union(ctx.Products.Where(p => p.Id == 2))
-            .ForUpdate().ToListAsync();
+        await using var ctxA = CreateContext();
+        var txA = await ctxA.Database.BeginTransactionAsync();
+        await ctxA.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
+        await txA.RollbackAsync();
+        await txA.DisposeAsync();
 
-        await act.Should().ThrowAsync<LockingConfigurationException>();
-        await tx.RollbackAsync();
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        var row = await ctxB.Products.Where(p => p.Id == id)
+            .ForUpdate(LockBehavior.NoWait).FirstOrDefaultAsync();
+
+        row.Should().NotBeNull();
+        await txB.RollbackAsync();
     }
 
     [Fact]
@@ -130,21 +189,16 @@ public class ConcurrencyTests(MySqlFixture fixture)
     }
 
     [Fact]
-    public async Task ForUpdate_MultipleRows_AllLocked_SkipLocked_ReturnsEmpty()
+    public async Task ForUpdate_UnionQuery_ThrowsLockingConfigurationException()
     {
-        await using var ctxSeed = CreateContext();
-        var id1 = await SeedAsync(ctxSeed, "Bulk1");
-        var id2 = await SeedAsync(ctxSeed, "Bulk2");
+        await using var ctx = CreateContext();
+        await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        await using var ctxA = CreateContext();
-        await using var txA = await ctxA.Database.BeginTransactionAsync();
-        (await ctxA.Products.Where(p => p.Id == id1 || p.Id == id2).ForUpdate().ToListAsync()).Should().HaveCount(2);
+        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1)
+            .Union(ctx.Products.Where(p => p.Id == 2))
+            .ForUpdate().ToListAsync();
 
-        await using var ctxB = CreateContext();
-        await using var txB = await ctxB.Database.BeginTransactionAsync();
-        (await ctxB.Products.Where(p => p.Id == id1 || p.Id == id2).ForUpdate(LockBehavior.SkipLocked).ToListAsync()).Should().BeEmpty();
-
-        await txA.RollbackAsync();
-        await txB.RollbackAsync();
+        await act.Should().ThrowAsync<LockingConfigurationException>();
+        await tx.RollbackAsync();
     }
 }

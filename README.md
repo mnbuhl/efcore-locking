@@ -71,6 +71,59 @@ var row = await ctx.Products
 await tx.CommitAsync();
 ```
 
+### PostgreSQL-only: ForNoKeyUpdate and ForKeyShare
+
+These modes are available when using the `EntityFrameworkCore.Locking.PostgreSQL` package:
+
+```csharp
+// FOR NO KEY UPDATE — blocks writers but allows FOR KEY SHARE (FK lookups)
+var row = await ctx.Products
+    .Where(p => p.Id == id)
+    .ForNoKeyUpdate()
+    .FirstOrDefaultAsync();
+
+// FOR KEY SHARE — minimal shared lock, only blocks FOR UPDATE
+// Useful for FK-referencing queries that should not block non-key updates
+var row = await ctx.Products
+    .Where(p => p.Id == id)
+    .ForKeyShare()
+    .FirstOrDefaultAsync();
+```
+
+### Include with locking (PostgreSQL)
+
+PostgreSQL automatically scopes the lock to the root table when a collection `Include` is present (emits `FOR UPDATE OF "t"`), so you can use `Include` directly without `AsSplitQuery()`:
+
+```csharp
+// Works — FOR UPDATE OF "p" is emitted automatically
+var product = await ctx.Products
+    .Include(p => p.OrderLines)
+    .Where(p => p.Id == id)
+    .ForUpdate()
+    .FirstOrDefaultAsync();
+```
+
+### Queue processing pattern
+
+A common use of `ForUpdate(LockBehavior.SkipLocked)` is a worker queue where multiple consumers race to claim items:
+
+```csharp
+await using var tx = await ctx.Database.BeginTransactionAsync();
+
+var item = await ctx.Jobs
+    .Where(j => j.Status == "pending")
+    .OrderBy(j => j.CreatedAt)
+    .ForUpdate(LockBehavior.SkipLocked)
+    .FirstOrDefaultAsync();
+
+if (item is null)
+    return; // all items claimed by other workers
+
+item.Status = "processing";
+await ctx.SaveChangesAsync();
+await tx.CommitAsync();
+```
+
 ## Lock modes and behaviors
 
 | Method | Generated SQL |
@@ -80,6 +133,8 @@ await tx.CommitAsync();
 | `ForUpdate(LockBehavior.SkipLocked)` | `FOR UPDATE SKIP LOCKED` (PG/MySQL) / `WITH (UPDLOCK, ROWLOCK, READPAST)` (SQL Server) |
 | `ForUpdate(LockBehavior.Wait, timeout)` | `SET LOCAL lock_timeout = '500ms'` (PG) / `SET SESSION innodb_lock_wait_timeout` (MySQL) / `SET LOCK_TIMEOUT 500` (SQL Server) |
 | `ForShare()` | `FOR SHARE` (PostgreSQL/MySQL only) |
+| `ForNoKeyUpdate()` | `FOR NO KEY UPDATE` (PostgreSQL only) |
+| `ForKeyShare()` | `FOR KEY SHARE` (PostgreSQL only) |
 
 ## Exception handling
 
@@ -100,6 +155,11 @@ catch (LockTimeoutException ex)
 catch (DeadlockException ex)
 {
     // Deadlock detected — retry the transaction
+}
+catch (LockingConfigurationException ex)
+{
+    // Programmer error: missing transaction, unsupported query shape,
+    // or unsupported lock mode for this provider
 }
 ```
 
@@ -122,15 +182,17 @@ catch (DeadlockException ex)
 | `NoWait` | ✓ | ✓ | ✓ |
 | Wait with timeout | ✓ (ms) | ✓ (ceil to 1s) | ✓ (ms) |
 
-SQL Server does not support `FOR SHARE`. Using it throws `LockingConfigurationException`.
+`ForNoKeyUpdate` and `ForKeyShare` are PostgreSQL-only extension methods available when the `EntityFrameworkCore.Locking.PostgreSQL` package is installed. Using `ForShare` on SQL Server throws `LockingConfigurationException`.
 
-`ForNoKeyUpdate` and `ForKeyShare` are PostgreSQL-only extension methods available when the `EntityFrameworkCore.Locking.PostgreSQL` package is installed.
+**SQL Server `SkipLocked` limitation:** SQL Server uses `WITH (UPDLOCK, ROWLOCK, READPAST)` instead of `SKIP LOCKED`. `READPAST` only skips rows held under row-level or page-level locks — rows under a table-level lock are blocked rather than skipped. For typical queue-processing workloads this behaves identically to `SKIP LOCKED` on PostgreSQL/MySQL.
 
-**SQL Server `SkipLocked` limitation:** SQL Server uses `WITH (UPDLOCK, ROWLOCK, READPAST)` instead of `SKIP LOCKED`. `READPAST` only skips rows held under row-level or page-level locks. Rows held under a table-level lock are blocked rather than skipped. For typical queue-processing workloads (row locks) this behaves identically to `SKIP LOCKED` on PostgreSQL/MySQL.
+**MySQL timeout precision:** MySQL's `innodb_lock_wait_timeout` is in whole seconds. Sub-second timeouts are rounded up to 1 second.
 
 ## Unsupported query shapes
 
 `UNION`, `EXCEPT`, `INTERSECT` with locking throw `LockingConfigurationException` at query execution time. Use per-query locks on individual queries before combining results.
+
+`AsSplitQuery()` combined with locking throws `LockingConfigurationException` — use regular `Include()` instead (on PostgreSQL, `FOR UPDATE OF` is emitted automatically to handle outer joins).
 
 ## Target frameworks
 
@@ -138,4 +200,4 @@ SQL Server does not support `FOR SHARE`. Using it throws `LockingConfigurationEx
 
 ## License
 
-MIT
+[MIT](LICENSE)

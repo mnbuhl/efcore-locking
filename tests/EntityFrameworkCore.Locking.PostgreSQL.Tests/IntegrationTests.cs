@@ -8,22 +8,43 @@ using Xunit;
 namespace EntityFrameworkCore.Locking.PostgreSQL.Tests;
 
 [Collection("Postgres")]
-public class IntegrationTests(PostgresFixture fixture)
+public class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
+    public async Task InitializeAsync()
+    {
+        await using var ctx = CreateContext();
+        await ctx.Database.EnsureCreatedAsync();
+        await ctx.Database.ExecuteSqlRawAsync(
+            """TRUNCATE "OrderLines", "Products", "Categories" RESTART IDENTITY CASCADE"""
+        );
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
     private TestDbContext CreateContext() =>
-        new(new DbContextOptionsBuilder<TestDbContext>()
-            .UseNpgsql(fixture.ConnectionString)
-            .UseLocking()
-            .Options);
+        new(
+            new DbContextOptionsBuilder<TestDbContext>()
+                .UseNpgsql(fixture.ConnectionString)
+                .UseLocking()
+                .Options
+        );
 
     private async Task<(int categoryId, int productId)> SeedAsync(
-        TestDbContext ctx, string categoryName = "Electronics", string productName = "Widget")
+        TestDbContext ctx,
+        string categoryName = "Electronics",
+        string productName = "Widget"
+    )
     {
-        await ctx.Database.EnsureCreatedAsync();
         var cat = new Category { Name = categoryName };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
-        var p = new Product { Name = productName, Price = 9.99m, Stock = 10, CategoryId = cat.Id };
+        var p = new Product
+        {
+            Name = productName,
+            Price = 9.99m,
+            Stock = 10,
+            CategoryId = cat.Id,
+        };
         ctx.Products.Add(p);
         await ctx.SaveChangesAsync();
         return (cat.Id, p.Id);
@@ -49,9 +70,9 @@ public class IntegrationTests(PostgresFixture fixture)
     public async Task ForUpdate_WithoutTransaction_ThrowsInvalidOperationException()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
 
-        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
+        Func<Task> act = async () =>
+            await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -59,10 +80,11 @@ public class IntegrationTests(PostgresFixture fixture)
     public async Task ForUpdate_NonExistentRow_ReturnsNull()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        (await ctx.Products.Where(p => p.Id == int.MaxValue).ForUpdate().FirstOrDefaultAsync()).Should().BeNull();
+        (await ctx.Products.Where(p => p.Id == int.MaxValue).ForUpdate().FirstOrDefaultAsync())
+            .Should()
+            .BeNull();
         await tx.RollbackAsync();
     }
 
@@ -70,11 +92,16 @@ public class IntegrationTests(PostgresFixture fixture)
     public async Task SaveChanges_WithoutLock_WorksNormally()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         var cat = new Category { Name = "NoLock" };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
-        var p = new Product { Name = "NoLock", Price = 1m, Stock = 1, CategoryId = cat.Id };
+        var p = new Product
+        {
+            Name = "NoLock",
+            Price = 1m,
+            Stock = 1,
+            CategoryId = cat.Id,
+        };
         ctx.Products.Add(p);
         await ctx.SaveChangesAsync();
 
@@ -87,7 +114,6 @@ public class IntegrationTests(PostgresFixture fixture)
     public void ForUpdate_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Database.EnsureCreated();
 
         var sql = ctx.Products.Where(p => p.Id == 1).ForUpdate().ToQueryString();
         sql.Should().Contain("FOR UPDATE");
@@ -100,27 +126,30 @@ public class IntegrationTests(PostgresFixture fixture)
     public void ForUpdate_NoWait_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Database.EnsureCreated();
 
-        ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.NoWait).ToQueryString()
-            .Should().Contain("FOR UPDATE NOWAIT");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.NoWait)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR UPDATE NOWAIT");
     }
 
     [Fact]
     public void ForUpdate_SkipLocked_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Database.EnsureCreated();
 
-        ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.SkipLocked).ToQueryString()
-            .Should().Contain("FOR UPDATE SKIP LOCKED");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.SkipLocked)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR UPDATE SKIP LOCKED");
     }
 
     [Fact]
     public void ForShare_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Database.EnsureCreated();
 
         var sql = ctx.Products.Where(p => p.Id == 1).ForShare().ToQueryString();
         sql.Should().Contain("FOR SHARE");
@@ -131,20 +160,24 @@ public class IntegrationTests(PostgresFixture fixture)
     public void ForShare_NoWait_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Database.EnsureCreated();
 
-        ctx.Products.Where(p => p.Id == 1).ForShare(LockBehavior.NoWait).ToQueryString()
-            .Should().Contain("FOR SHARE NOWAIT");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForShare(LockBehavior.NoWait)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR SHARE NOWAIT");
     }
 
     [Fact]
     public void ForShare_SkipLocked_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Database.EnsureCreated();
 
-        ctx.Products.Where(p => p.Id == 1).ForShare(LockBehavior.SkipLocked).ToQueryString()
-            .Should().Contain("FOR SHARE SKIP LOCKED");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForShare(LockBehavior.SkipLocked)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR SHARE SKIP LOCKED");
     }
 
     // --- Include / navigation ---
@@ -156,8 +189,11 @@ public class IntegrationTests(PostgresFixture fixture)
         var (_, id) = await SeedAsync(ctx, categoryName: "Nav");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var product = await ctx.Products.Include(p => p.Category)
-            .Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
+        var product = await ctx
+            .Products.Include(p => p.Category)
+            .Where(p => p.Id == id)
+            .ForUpdate()
+            .FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
         product!.Category.Name.Should().Be("Nav");
@@ -172,14 +208,21 @@ public class IntegrationTests(PostgresFixture fixture)
         await using var ctx = CreateContext();
         var (_, id) = await SeedAsync(ctx);
         for (var i = 1; i <= 3; i++)
-            ctx.OrderLines.Add(new OrderLine { ProductId = id, Quantity = i, UnitPrice = i * 1.5m });
+            ctx.OrderLines.Add(
+                new OrderLine
+                {
+                    ProductId = id,
+                    Quantity = i,
+                    UnitPrice = i * 1.5m,
+                }
+            );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
         var product = await ctx.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
         product.Should().NotBeNull();
 
-        await ctx.Entry(product!).Collection(p => p.OrderLines).LoadAsync();
+        await ctx.Entry(product).Collection(p => p.OrderLines).LoadAsync();
         product.OrderLines.Should().HaveCount(3);
         await tx.RollbackAsync();
     }
@@ -189,15 +232,15 @@ public class IntegrationTests(PostgresFixture fixture)
     [Fact]
     public async Task ForUpdate_FilteredByRelation_LocksMatchingRows()
     {
-        var tag = Guid.NewGuid().ToString("N")[..8];
         await using var ctx = CreateContext();
-        await SeedAsync(ctx, categoryName: $"Gadgets-{tag}", productName: "Gizmo");
-        await SeedAsync(ctx, categoryName: $"Other-{tag}", productName: "Widget");
+        await SeedAsync(ctx, categoryName: "Gadgets", productName: "Gizmo");
+        await SeedAsync(ctx, categoryName: "Other", productName: "Widget");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var products = await ctx.Products
-            .Where(p => p.Category.Name == $"Gadgets-{tag}")
-            .ForUpdate().ToListAsync();
+        var products = await ctx
+            .Products.Where(p => p.Category.Name == "Gadgets")
+            .ForUpdate()
+            .ToListAsync();
 
         products.Should().HaveCount(1);
         products[0].Name.Should().Be("Gizmo");
@@ -210,17 +253,28 @@ public class IntegrationTests(PostgresFixture fixture)
     public async Task ForUpdate_WithOrderByAndTake_LocksPage()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         var cat = new Category { Name = "Page" };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
         for (var i = 1; i <= 5; i++)
-            ctx.Products.Add(new Product { Name = $"P{i}", Price = i, Stock = i, CategoryId = cat.Id });
+            ctx.Products.Add(
+                new Product
+                {
+                    Name = $"P{i}",
+                    Price = i,
+                    Stock = i,
+                    CategoryId = cat.Id,
+                }
+            );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var page = await ctx.Products.Where(p => p.Category.Name == "Page")
-            .OrderBy(p => p.Price).Take(2).ForUpdate().ToListAsync();
+        var page = await ctx
+            .Products.Where(p => p.Category.Name == "Page")
+            .OrderBy(p => p.Price)
+            .Take(2)
+            .ForUpdate()
+            .ToListAsync();
 
         page.Should().HaveCount(2);
         page[0].Price.Should().BeLessThanOrEqualTo(page[1].Price);
@@ -231,17 +285,29 @@ public class IntegrationTests(PostgresFixture fixture)
     public async Task ForUpdate_WithSkipAndTake_LocksCorrectPage()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         var cat = new Category { Name = "Skip" };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
         for (var i = 1; i <= 5; i++)
-            ctx.Products.Add(new Product { Name = $"Q{i}", Price = i, Stock = i, CategoryId = cat.Id });
+            ctx.Products.Add(
+                new Product
+                {
+                    Name = $"Q{i}",
+                    Price = i,
+                    Stock = i,
+                    CategoryId = cat.Id,
+                }
+            );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var page = await ctx.Products.Where(p => p.Category.Name == "Skip")
-            .OrderBy(p => p.Price).Skip(2).Take(2).ForUpdate().ToListAsync();
+        var page = await ctx
+            .Products.Where(p => p.Category.Name == "Skip")
+            .OrderBy(p => p.Price)
+            .Skip(2)
+            .Take(2)
+            .ForUpdate()
+            .ToListAsync();
 
         page.Should().HaveCount(2);
         page[0].Name.Should().Be("Q3");
@@ -273,11 +339,15 @@ public class IntegrationTests(PostgresFixture fixture)
 
         await using var ctxA = CreateContext();
         await using var txA = await ctxA.Database.BeginTransactionAsync();
-        (await ctxA.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync()).Should().NotBeNull();
+        (await ctxA.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync())
+            .Should()
+            .NotBeNull();
 
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
-        (await ctxB.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync()).Should().NotBeNull();
+        (await ctxB.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync())
+            .Should()
+            .NotBeNull();
 
         await txA.RollbackAsync();
         await txB.RollbackAsync();
@@ -289,12 +359,14 @@ public class IntegrationTests(PostgresFixture fixture)
     public async Task ForUpdate_UnsupportedShape_Except_ThrowsLockingConfigurationException()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1)
-            .Except(ctx.Products.Where(p => p.Id == 2))
-            .ForUpdate().ToListAsync();
+        Func<Task> act = async () =>
+            await ctx
+                .Products.Where(p => p.Id == 1)
+                .Except(ctx.Products.Where(p => p.Id == 2))
+                .ForUpdate()
+                .ToListAsync();
 
         await act.Should().ThrowAsync<LockingConfigurationException>();
         await tx.RollbackAsync();
@@ -309,7 +381,8 @@ public class IntegrationTests(PostgresFixture fixture)
         var (_, id) = await SeedAsync(ctx, productName: "Uncontended");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var row = await ctx.Products.Where(p => p.Id == id)
+        var row = await ctx
+            .Products.Where(p => p.Id == id)
             .ForUpdate(LockBehavior.Wait, TimeSpan.FromMilliseconds(500))
             .FirstOrDefaultAsync();
 

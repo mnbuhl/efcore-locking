@@ -8,8 +8,20 @@ using Xunit;
 namespace EntityFrameworkCore.Locking.MySql.Tests;
 
 [Collection("MySql")]
-public class IntegrationTests(MySqlFixture fixture)
+public class IntegrationTests(MySqlFixture fixture) : IAsyncLifetime
 {
+    public async Task InitializeAsync()
+    {
+        await using var ctx = CreateContext();
+        await ctx.Database.EnsureCreatedAsync();
+        // DELETE in FK-safe order (children before parents); AUTO_INCREMENT resets on next insert
+        await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `OrderLines`");
+        await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `Products`");
+        await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `Categories`");
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
     private TestDbContext CreateContext()
     {
         var serverVersion = ServerVersion.AutoDetect(fixture.ConnectionString);
@@ -22,7 +34,6 @@ public class IntegrationTests(MySqlFixture fixture)
     private async Task<(int categoryId, int productId)> SeedAsync(
         TestDbContext ctx, string categoryName = "Electronics", string productName = "Widget")
     {
-        await ctx.Database.EnsureCreatedAsync();
         var cat = new Category { Name = categoryName };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
@@ -52,7 +63,6 @@ public class IntegrationTests(MySqlFixture fixture)
     public async Task ForUpdate_WithoutTransaction_ThrowsInvalidOperationException()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
 
         Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
         await act.Should().ThrowAsync<InvalidOperationException>();
@@ -62,7 +72,6 @@ public class IntegrationTests(MySqlFixture fixture)
     public async Task ForUpdate_NonExistentRow_ReturnsNull()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
         (await ctx.Products.Where(p => p.Id == int.MaxValue).ForUpdate().FirstOrDefaultAsync()).Should().BeNull();
@@ -73,7 +82,6 @@ public class IntegrationTests(MySqlFixture fixture)
     public async Task SaveChanges_WithoutLock_WorksNormally()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         var cat = new Category { Name = "NoLock" };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
@@ -90,7 +98,6 @@ public class IntegrationTests(MySqlFixture fixture)
     public async Task ForUpdate_GeneratesExactSql()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
         var sql = ctx.Products.Where(p => p.Id == 1).ForUpdate().ToQueryString();
@@ -104,7 +111,6 @@ public class IntegrationTests(MySqlFixture fixture)
     public async Task ForUpdate_NoWait_GeneratesExactSql()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
         ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.NoWait).ToQueryString()
@@ -116,7 +122,6 @@ public class IntegrationTests(MySqlFixture fixture)
     public async Task ForUpdate_SkipLocked_GeneratesExactSql()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
         ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.SkipLocked).ToQueryString()
@@ -128,7 +133,6 @@ public class IntegrationTests(MySqlFixture fixture)
     public async Task ForShare_GeneratesExactSql()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
         var sql = ctx.Products.Where(p => p.Id == 1).ForShare().ToQueryString();
@@ -177,14 +181,13 @@ public class IntegrationTests(MySqlFixture fixture)
     [Fact]
     public async Task ForUpdate_FilteredByRelation_LocksMatchingRows()
     {
-        var tag = Guid.NewGuid().ToString("N")[..8];
         await using var ctx = CreateContext();
-        await SeedAsync(ctx, categoryName: $"Gadgets-{tag}", productName: "Gizmo");
-        await SeedAsync(ctx, categoryName: $"Other-{tag}", productName: "Widget");
+        await SeedAsync(ctx, categoryName: "Gadgets", productName: "Gizmo");
+        await SeedAsync(ctx, categoryName: "Other", productName: "Widget");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
         var products = await ctx.Products
-            .Where(p => p.Category.Name == $"Gadgets-{tag}")
+            .Where(p => p.Category.Name == "Gadgets")
             .ForUpdate().ToListAsync();
 
         products.Should().HaveCount(1);
@@ -198,7 +201,6 @@ public class IntegrationTests(MySqlFixture fixture)
     public async Task ForUpdate_WithOrderByAndTake_LocksPage()
     {
         await using var ctx = CreateContext();
-        await ctx.Database.EnsureCreatedAsync();
         var cat = new Category { Name = "Page" };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
@@ -248,8 +250,6 @@ public class IntegrationTests(MySqlFixture fixture)
         await txA.RollbackAsync();
         await txB.RollbackAsync();
     }
-
-    // --- ForShare NoWait ---
 
     [Fact]
     public async Task ForShare_NoWait_ThrowsOnLockedRow()

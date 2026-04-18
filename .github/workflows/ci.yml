@@ -78,7 +78,7 @@ jobs:
           --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
           --logger "console;verbosity=normal"
 
-  test-core:
+  test-sqlserver:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -96,9 +96,9 @@ jobs:
       - name: Restore
         run: dotnet restore
 
-      - name: Test (Core)
+      - name: Test (SQL Server)
         run: >
-          dotnet test tests/EntityFrameworkCore.Locking.Tests
+          dotnet test tests/EntityFrameworkCore.Locking.SqlServer.Tests
           --no-restore --configuration Release
           --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
           --logger "console;verbosity=normal"

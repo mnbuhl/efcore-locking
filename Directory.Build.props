@@ -14,9 +14,20 @@
     <RepositoryType>git</RepositoryType>
     <PackageTags>entity-framework efcore locking row-lock for-update select-for-update pessimistic</PackageTags>
     <Version>1.0.0-alpha.1</Version>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591: missing XML doc — self-documenting public surface (exception ctors, record properties) -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests')) and Exists('$(MSBuildThisFileDirectory)README.md')">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 </Project>

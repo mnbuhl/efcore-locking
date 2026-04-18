@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\EntityFrameworkCore.Locking.SqlServer\EntityFrameworkCore.Locking.SqlServer.csproj" />
+    <ProjectReference Include="..\EntityFrameworkCore.Locking.Tests.Infrastructure\EntityFrameworkCore.Locking.Tests.Infrastructure.csproj" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

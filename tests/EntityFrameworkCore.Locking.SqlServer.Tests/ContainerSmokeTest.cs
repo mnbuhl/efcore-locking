@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using EntityFrameworkCore.Locking.SqlServer.Tests.Fixtures;
+using EntityFrameworkCore.Locking.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 

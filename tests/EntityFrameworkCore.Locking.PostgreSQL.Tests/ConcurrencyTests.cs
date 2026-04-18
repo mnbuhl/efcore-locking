@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.PostgreSQL.Tests.Fixtures;
+using EntityFrameworkCore.Locking.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 

@@ -11,6 +11,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "items", "items", "{2D0ADCE2
 		nuget.config = nuget.config
 		LICENSE = LICENSE
 		README.md = README.md
+		.editorconfig = .editorconfig
+		CLAUDE.md = CLAUDE.md
+		dotnet-tools.json = dotnet-tools.json
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{73D87BF9-EFDE-4A76-A86A-AE48FB034008}"

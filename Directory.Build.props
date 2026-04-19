@@ -16,7 +16,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
-  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
+  <PropertyGroup Condition="!$(MSBuildProjectName.Contains('.Tests'))">
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- CS1591: missing XML doc — self-documenting public surface (exception ctors, record properties) -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
@@ -24,12 +24,12 @@
     <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 
-  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+  <PropertyGroup Condition="$(MSBuildProjectName.Contains('.Tests'))">
     <IsPackable>false</IsPackable>
     <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 
-  <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests')) and Exists('$(MSBuildThisFileDirectory)README.md')">
+  <ItemGroup Condition="!$(MSBuildProjectName.Contains('.Tests')) and Exists('$(MSBuildThisFileDirectory)README.md')">
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

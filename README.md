@@ -8,9 +8,9 @@ Pessimistic locking for EF Core. Supports PostgreSQL, MySQL, and SQL Server.
 ## Installation
 
 ```
-dotnet add package EntityFrameworkCore.Locking.PostgreSQL  # Npgsql
-dotnet add package EntityFrameworkCore.Locking.MySql       # Pomelo
-dotnet add package EntityFrameworkCore.Locking.SqlServer   # Microsoft.Data.SqlClient
+dotnet add package EntityFrameworkCore.Locking.PostgreSQL
+dotnet add package EntityFrameworkCore.Locking.MySql
+dotnet add package EntityFrameworkCore.Locking.SqlServer
 ```
 
 ## Setup
@@ -143,7 +143,7 @@ await using var handle = await ctx.AcquireDistributedLockAsync("invoice:generate
 await using var handle = await ctx.AcquireDistributedLockAsync(
     "report:daily", TimeSpan.FromSeconds(5));
 
-// With ASP.NET request cancellation
+// With cancellation token
 await using var handle = await ctx.AcquireDistributedLockAsync(
     "report:daily", timeout: null, cancellationToken: ct);
 

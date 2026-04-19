@@ -1,9 +1,9 @@
 using System.Data;
 using System.Data.Common;
 using AwesomeAssertions;
+using EntityFrameworkCore.Locking;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
-using EntityFrameworkCore.Locking.Extensions;
 using EntityFrameworkCore.Locking.Internal;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -197,9 +197,6 @@ internal sealed class FakeLockingProvider : ILockingProvider
     public string ProviderName => "Fake";
     public IExceptionTranslator ExceptionTranslator { get; } = new FakeExceptionTranslator();
     public IAdvisoryLockProvider? AdvisoryLockProvider => _advisory;
-
-    public Task ValidateProviderAsync(CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
 }
 
 internal sealed class FakeLockSqlGenerator : ILockSqlGenerator

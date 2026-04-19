@@ -34,5 +34,24 @@ public sealed class SqlCapture : DbCommandInterceptor
         return new ValueTask<DbDataReader>(result);
     }
 
+    public override object? ScalarExecuted(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        object? result)
+    {
+        _commands.Add(command.CommandText);
+        return result;
+    }
+
+    public override ValueTask<object?> ScalarExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        object? result,
+        CancellationToken cancellationToken = default)
+    {
+        _commands.Add(command.CommandText);
+        return new ValueTask<object?>(result);
+    }
+
     public void Clear() => _commands.Clear();
 }

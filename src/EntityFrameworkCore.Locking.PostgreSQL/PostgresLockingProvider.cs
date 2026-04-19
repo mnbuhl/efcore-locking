@@ -6,6 +6,7 @@ internal sealed class PostgresLockingProvider : ILockingProvider
 {
     public ILockSqlGenerator RowLockGenerator { get; } = new PostgresLockSqlGenerator();
     public IExceptionTranslator ExceptionTranslator { get; } = new PostgresExceptionTranslator();
+    public IAdvisoryLockProvider? AdvisoryLockProvider { get; } = new PostgresAdvisoryLockProvider();
     public string ProviderName => "PostgreSQL";
 
     public Task ValidateProviderAsync(CancellationToken cancellationToken = default)

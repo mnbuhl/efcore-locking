@@ -1,6 +1,9 @@
 # EntityFrameworkCore.Locking
 
-Row-level pessimistic locking for EF Core via `ForUpdate()` and `ForShare()` LINQ extension methods. Supports PostgreSQL, MySQL, and SQL Server.
+Pessimistic locking for EF Core. Supports PostgreSQL, MySQL, and SQL Server.
+
+- **Row-level locks** — `ForUpdate()` / `ForShare()` LINQ extension methods scoped to a transaction
+- **Distributed locks** — `AcquireDistributedLockAsync()` session-scoped advisory locks, no transaction required
 
 ## Installation
 
@@ -124,6 +127,85 @@ await ctx.SaveChangesAsync();
 await tx.CommitAsync();
 ```
 
+## Distributed locks
+
+Distributed (advisory) locks let you coordinate across processes without tying the lock to a database row or transaction. They are session-scoped — the lock is held until you dispose the handle, or until the connection drops.
+
+No transaction is required.
+
+```csharp
+// Acquire — blocks until available (optional timeout)
+await using var handle = await ctx.AcquireDistributedLockAsync("invoice:generate");
+// ... critical section ...
+// lock released automatically on dispose
+
+// With a timeout — throws LockTimeoutException if not acquired within 5 s
+await using var handle = await ctx.AcquireDistributedLockAsync(
+    "report:daily", TimeSpan.FromSeconds(5));
+
+// With ASP.NET request cancellation
+await using var handle = await ctx.AcquireDistributedLockAsync(
+    "report:daily", timeout: null, cancellationToken: ct);
+
+// TryAcquire — returns null immediately if already held
+var handle = await ctx.TryAcquireDistributedLockAsync("invoice:generate");
+if (handle is null)
+    return Results.Conflict("Another process is generating the invoice.");
+await using (handle) { /* critical section */ }
+
+// Synchronous variants are also available
+using var handle = ctx.AcquireDistributedLock("report:daily");
+var handle = ctx.TryAcquireDistributedLock("report:daily");
+
+// Check support at runtime
+if (ctx.SupportsDistributedLocks()) { ... }
+```
+
+### Lock keys
+
+Keys are plain strings, up to **255 characters**. The library handles provider-specific encoding internally:
+
+- **PostgreSQL** — hashed to a `bigint` via XxHash32 with a namespace prefix (`"EFLK"`); the hash is computed in-process so no extra round-trip is needed.
+- **MySQL** — passed as-is for keys ≤ 64 UTF-8 bytes; longer keys are SHA-256 hashed to `lock:<hex58>` (64 chars). The `lock:` prefix is reserved.
+- **SQL Server** — passed as-is (max 255 chars, enforced upstream).
+
+### Provider-specific behavior
+
+| Feature | PostgreSQL | MySQL | SQL Server |
+|---------|-----------|-------|-----------|
+| Native primitive | `pg_advisory_lock` | `GET_LOCK` | `sp_getapplock @LockOwner='Session'` |
+| Timeout | `SET LOCAL lock_timeout` (ms) | `GET_LOCK(@key, seconds)` — rounded up to 1 s | `@LockTimeout` ms |
+| Cancellation | Driver-level (best-effort) | `KILL QUERY` side-channel | Attention signal |
+
+**MySQL timeout precision:** `GET_LOCK` timeout is in whole seconds. Sub-second timeouts are rounded up to 1 second.
+
+**Cancellation caveat:** advisory lock SQL is a blocking database call. Cancellation sends a cancel signal to the driver; if the driver does not honor it before the timeout fires, the call completes via timeout. Always combine a `timeout` with the `CancellationToken` for bounded waits.
+
+### Exception handling
+
+```csharp
+try
+{
+    await using var handle = await ctx.AcquireDistributedLockAsync(
+        "report:daily", TimeSpan.FromSeconds(5));
+}
+catch (LockTimeoutException)
+{
+    // Not acquired within the timeout
+}
+catch (LockAlreadyHeldException ex)
+{
+    // Same DbContext + connection attempted to acquire the same key twice
+    // ex.Key contains the key name
+}
+catch (LockingConfigurationException)
+{
+    // Provider does not support distributed locks, or UseLocking() was not called
+}
+```
+
+`LockAlreadyHeldException` is thrown synchronously before any database call when the same `(DbContext, connection, key)` triple is already registered. Acquiring the same key from two **different** `DbContext` instances on different connections will block (or return `null` for `TryAcquire`) as expected.
+
 ## Lock modes and behaviors
 
 | Method | Generated SQL |
@@ -168,7 +250,8 @@ catch (LockingConfigurationException ex)
   - `LockAcquisitionFailedException`
     - `LockTimeoutException` — timeout or NOWAIT failure
     - `DeadlockException` — deadlock victim
-  - `LockingConfigurationException` — programmer error (missing transaction, unsupported query shape)
+    - `LockAlreadyHeldException` — same key acquired twice on the same connection (distributed locks)
+  - `LockingConfigurationException` — programmer error (missing transaction, unsupported query shape, provider not configured)
 
 ## Provider limitations
 

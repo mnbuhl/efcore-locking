@@ -79,11 +79,7 @@ public partial class IntegrationTests
     public void ForNoKeyUpdate_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1)
-            .ForNoKeyUpdate()
-            .ToQueryString()
-            .Should()
-            .Contain("FOR NO KEY UPDATE");
+        ctx.Products.Where(p => p.Id == 1).ForNoKeyUpdate().ToQueryString().Should().Contain("FOR NO KEY UPDATE");
     }
 
     [Fact]
@@ -112,11 +108,7 @@ public partial class IntegrationTests
     public void ForKeyShare_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1)
-            .ForKeyShare()
-            .ToQueryString()
-            .Should()
-            .Contain("FOR KEY SHARE");
+        ctx.Products.Where(p => p.Id == 1).ForKeyShare().ToQueryString().Should().Contain("FOR KEY SHARE");
     }
 
     [Fact]
@@ -134,11 +126,7 @@ public partial class IntegrationTests
     public void ForUpdate_WithLeftJoin_GeneratesForUpdateOf()
     {
         using var ctx = CreateContext();
-        var sql = ctx
-            .Products.Include(p => p.OrderLines)
-            .Where(p => p.Id == 1)
-            .ForUpdate()
-            .ToQueryString();
+        var sql = ctx.Products.Include(p => p.OrderLines).Where(p => p.Id == 1).ForUpdate().ToQueryString();
         sql.Should().Contain("FOR UPDATE OF");
     }
 

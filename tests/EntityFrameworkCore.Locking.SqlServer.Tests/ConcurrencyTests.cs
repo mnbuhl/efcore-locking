@@ -25,12 +25,7 @@ public class ConcurrencyTests(SqlServerFixture fixture) : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     private TestDbContext CreateContext() =>
-        new(
-            new DbContextOptionsBuilder<TestDbContext>()
-                .UseSqlServer(fixture.ConnectionString)
-                .UseLocking()
-                .Options
-        );
+        new(new DbContextOptionsBuilder<TestDbContext>().UseSqlServer(fixture.ConnectionString).UseLocking().Options);
 
     private static async Task<int> SeedAsync(TestDbContext ctx, string name = "Widget")
     {
@@ -62,10 +57,7 @@ public class ConcurrencyTests(SqlServerFixture fixture) : IAsyncLifetime
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
         Func<Task> act = async () =>
-            await ctxB
-                .Products.Where(p => p.Id == id)
-                .ForUpdate(LockBehavior.NoWait)
-                .FirstOrDefaultAsync();
+            await ctxB.Products.Where(p => p.Id == id).ForUpdate(LockBehavior.NoWait).FirstOrDefaultAsync();
 
         await act.Should().ThrowAsync<LockTimeoutException>();
         await txA.RollbackAsync();
@@ -108,18 +100,11 @@ public class ConcurrencyTests(SqlServerFixture fixture) : IAsyncLifetime
 
         await using var ctxA = CreateContext();
         await using var txA = await ctxA.Database.BeginTransactionAsync();
-        (await ctxA.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync())
-            .Should()
-            .NotBeNull();
+        (await ctxA.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync()).Should().NotBeNull();
 
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
-        (
-            await ctxB
-                .Products.Where(p => p.Id == id)
-                .ForUpdate(LockBehavior.SkipLocked)
-                .FirstOrDefaultAsync()
-        )
+        (await ctxB.Products.Where(p => p.Id == id).ForUpdate(LockBehavior.SkipLocked).FirstOrDefaultAsync())
             .Should()
             .BeNull();
 
@@ -166,10 +151,7 @@ public class ConcurrencyTests(SqlServerFixture fixture) : IAsyncLifetime
 
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
-        var row = await ctxB
-            .Products.Where(p => p.Id == id)
-            .ForUpdate(LockBehavior.NoWait)
-            .FirstOrDefaultAsync();
+        var row = await ctxB.Products.Where(p => p.Id == id).ForUpdate(LockBehavior.NoWait).FirstOrDefaultAsync();
 
         row.Should().NotBeNull();
         await txB.RollbackAsync();
@@ -190,9 +172,7 @@ public class ConcurrencyTests(SqlServerFixture fixture) : IAsyncLifetime
 
         await using var ctxB = CreateContext();
         await using var txB = await ctxB.Database.BeginTransactionAsync();
-        (await ctxB.Products.Where(p => p.Id == id).ForUpdate().FirstAsync())
-            .Price.Should()
-            .Be(99.99m);
+        (await ctxB.Products.Where(p => p.Id == id).ForUpdate().FirstAsync()).Price.Should().Be(99.99m);
         await txB.RollbackAsync();
     }
 
@@ -202,8 +182,7 @@ public class ConcurrencyTests(SqlServerFixture fixture) : IAsyncLifetime
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        Func<Task> act = async () =>
-            await ctx.Products.Where(p => p.Id == 1).ForShare().FirstOrDefaultAsync();
+        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1).ForShare().FirstOrDefaultAsync();
         await act.Should().ThrowAsync<LockingConfigurationException>();
         await tx.RollbackAsync();
     }

@@ -12,9 +12,7 @@ public class ContainerSmokeTest(SqlServerFixture fixture)
     [Fact]
     public async Task Container_StartsAndAcceptsConnections()
     {
-        var options = new DbContextOptionsBuilder<TestDbContext>()
-            .UseSqlServer(fixture.ConnectionString)
-            .Options;
+        var options = new DbContextOptionsBuilder<TestDbContext>().UseSqlServer(fixture.ConnectionString).Options;
 
         await using var ctx = new TestDbContext(options);
         await ctx.Database.EnsureCreatedAsync();

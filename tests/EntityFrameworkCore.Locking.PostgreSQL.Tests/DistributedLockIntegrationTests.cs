@@ -1,7 +1,7 @@
 using AwesomeAssertions;
+using EntityFrameworkCore.Locking;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
-using EntityFrameworkCore.Locking.Extensions;
 using EntityFrameworkCore.Locking.PostgreSQL.Tests.Fixtures;
 using EntityFrameworkCore.Locking.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -21,12 +21,7 @@ public class DistributedLockIntegrationTests(PostgresFixture fixture) : IAsyncLi
     public Task DisposeAsync() => Task.CompletedTask;
 
     private TestDbContext CreateContext() =>
-        new(
-            new DbContextOptionsBuilder<TestDbContext>()
-                .UseNpgsql(fixture.ConnectionString)
-                .UseLocking()
-                .Options
-        );
+        new(new DbContextOptionsBuilder<TestDbContext>().UseNpgsql(fixture.ConnectionString).UseLocking().Options);
 
     // --- Acquire_Free_Succeeds ---
 
@@ -127,8 +122,7 @@ public class DistributedLockIntegrationTests(PostgresFixture fixture) : IAsyncLi
 
         await using var ctxB = CreateContext();
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        Func<Task> act = () =>
-            ctxB.AcquireDistributedLockAsync(key, TimeSpan.FromMilliseconds(500));
+        Func<Task> act = () => ctxB.AcquireDistributedLockAsync(key, TimeSpan.FromMilliseconds(500));
         await act.Should().ThrowAsync<LockTimeoutException>();
         sw.Stop();
         sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5));
@@ -153,9 +147,7 @@ public class DistributedLockIntegrationTests(PostgresFixture fixture) : IAsyncLi
         await using var ctx = CreateContext();
         await using var h1 = await ctx.AcquireDistributedLockAsync("pg-double");
 
-        var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() =>
-            ctx.AcquireDistributedLockAsync("pg-double")
-        );
+        var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() => ctx.AcquireDistributedLockAsync("pg-double"));
         ex.Key.Should().Be("pg-double");
     }
 
@@ -200,8 +192,7 @@ public class DistributedLockIntegrationTests(PostgresFixture fixture) : IAsyncLi
         cts.CancelAfter(TimeSpan.FromMilliseconds(200));
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        Func<Task> act = () =>
-            ctxB.AcquireDistributedLockAsync(key, TimeSpan.FromSeconds(10), cts.Token);
+        Func<Task> act = () => ctxB.AcquireDistributedLockAsync(key, TimeSpan.FromSeconds(10), cts.Token);
         await act.Should().ThrowAsync<Exception>(); // OperationCanceledException or LockTimeoutException
         sw.Stop();
         sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15));

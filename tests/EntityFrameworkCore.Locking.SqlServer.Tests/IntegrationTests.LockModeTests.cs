@@ -14,8 +14,7 @@ public partial class IntegrationTests
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        Func<Task> act = async () =>
-            await ctx.Products.Where(p => p.Id == 1).ForShare().FirstOrDefaultAsync();
+        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1).ForShare().FirstOrDefaultAsync();
         await act.Should().ThrowAsync<LockingConfigurationException>();
         await tx.RollbackAsync();
     }
@@ -27,10 +26,7 @@ public partial class IntegrationTests
         var (_, id) = await SeedAsync(ctx, productName: "NoWaitFree");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var row = await ctx
-            .Products.Where(p => p.Id == id)
-            .ForUpdate(LockBehavior.NoWait)
-            .FirstOrDefaultAsync();
+        var row = await ctx.Products.Where(p => p.Id == id).ForUpdate(LockBehavior.NoWait).FirstOrDefaultAsync();
 
         row.Should().NotBeNull();
         await tx.RollbackAsync();
@@ -60,10 +56,7 @@ public partial class IntegrationTests
         var (_, id) = await SeedAsync(ctx);
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var row = await ctx
-            .Products.Where(p => p.Id == id)
-            .ForUpdate(LockBehavior.SkipLocked)
-            .FirstOrDefaultAsync();
+        var row = await ctx.Products.Where(p => p.Id == id).ForUpdate(LockBehavior.SkipLocked).FirstOrDefaultAsync();
 
         row.Should().NotBeNull();
         await tx.RollbackAsync();

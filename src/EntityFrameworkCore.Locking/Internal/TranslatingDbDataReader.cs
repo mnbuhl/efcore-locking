@@ -73,23 +73,13 @@ internal sealed class TranslatingDbDataReader : DbDataReader
 
     public override byte GetByte(int ordinal) => _inner.GetByte(ordinal);
 
-    public override long GetBytes(
-        int ordinal,
-        long dataOffset,
-        byte[]? buffer,
-        int bufferOffset,
-        int length
-    ) => _inner.GetBytes(ordinal, dataOffset, buffer, bufferOffset, length);
+    public override long GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length) =>
+        _inner.GetBytes(ordinal, dataOffset, buffer, bufferOffset, length);
 
     public override char GetChar(int ordinal) => _inner.GetChar(ordinal);
 
-    public override long GetChars(
-        int ordinal,
-        long dataOffset,
-        char[]? buffer,
-        int bufferOffset,
-        int length
-    ) => _inner.GetChars(ordinal, dataOffset, buffer, bufferOffset, length);
+    public override long GetChars(int ordinal, long dataOffset, char[]? buffer, int bufferOffset, int length) =>
+        _inner.GetChars(ordinal, dataOffset, buffer, bufferOffset, length);
 
     public override string GetDataTypeName(int ordinal) => _inner.GetDataTypeName(ordinal);
 

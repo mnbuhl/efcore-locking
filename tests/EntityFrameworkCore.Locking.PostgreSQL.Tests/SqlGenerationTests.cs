@@ -21,11 +21,7 @@ public class SqlGenerationTests
     [InlineData(LockMode.ForKeyShare, LockBehavior.Wait, "FOR KEY SHARE")]
     [InlineData(LockMode.ForKeyShare, LockBehavior.SkipLocked, "FOR KEY SHARE SKIP LOCKED")]
     [InlineData(LockMode.ForKeyShare, LockBehavior.NoWait, "FOR KEY SHARE NOWAIT")]
-    public void GenerateLockClause_ReturnsExpectedSql(
-        LockMode mode,
-        LockBehavior behavior,
-        string expected
-    )
+    public void GenerateLockClause_ReturnsExpectedSql(LockMode mode, LockBehavior behavior, string expected)
     {
         var options = new LockOptions { Mode = mode, Behavior = behavior };
         _generator.GenerateLockClause(options).Should().Be(expected);
@@ -60,28 +56,14 @@ public class SqlGenerationTests
     [Fact]
     public void SupportsLockOptions_AlwaysTrue()
     {
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate }).Should().BeTrue();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare }).Should().BeTrue();
         _generator
-            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate })
+            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked })
             .Should()
             .BeTrue();
-        _generator
-            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare })
-            .Should()
-            .BeTrue();
-        _generator
-            .SupportsLockOptions(
-                new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked }
-            )
-            .Should()
-            .BeTrue();
-        _generator
-            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForNoKeyUpdate })
-            .Should()
-            .BeTrue();
-        _generator
-            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForKeyShare })
-            .Should()
-            .BeTrue();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForNoKeyUpdate }).Should().BeTrue();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForKeyShare }).Should().BeTrue();
     }
 
     [Theory]
@@ -96,9 +78,6 @@ public class SqlGenerationTests
             Behavior = LockBehavior.Wait,
             Timeout = TimeSpan.FromMilliseconds(ms),
         };
-        _generator
-            .GeneratePreStatementSql(options)
-            .Should()
-            .Be($"SET LOCAL lock_timeout = '{expectedSuffix}'");
+        _generator.GeneratePreStatementSql(options).Should().Be($"SET LOCAL lock_timeout = '{expectedSuffix}'");
     }
 }

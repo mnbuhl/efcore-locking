@@ -23,12 +23,7 @@ public partial class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     private TestDbContext CreateContext() =>
-        new(
-            new DbContextOptionsBuilder<TestDbContext>()
-                .UseNpgsql(fixture.ConnectionString)
-                .UseLocking()
-                .Options
-        );
+        new(new DbContextOptionsBuilder<TestDbContext>().UseNpgsql(fixture.ConnectionString).UseLocking().Options);
 
     private (TestDbContext ctx, SqlCapture capture) CreateContextWithCapture()
     {
@@ -86,8 +81,7 @@ public partial class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
     {
         await using var ctx = CreateContext();
 
-        Func<Task> act = async () =>
-            await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
+        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -97,9 +91,7 @@ public partial class IntegrationTests(PostgresFixture fixture) : IAsyncLifetime
         await using var ctx = CreateContext();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        (await ctx.Products.Where(p => p.Id == int.MaxValue).ForUpdate().FirstOrDefaultAsync())
-            .Should()
-            .BeNull();
+        (await ctx.Products.Where(p => p.Id == int.MaxValue).ForUpdate().FirstOrDefaultAsync()).Should().BeNull();
         await tx.RollbackAsync();
     }
 

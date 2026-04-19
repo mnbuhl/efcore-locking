@@ -102,9 +102,7 @@ public class DistributedLockUnitTests
         await using var ctx = CreateContext();
         await using var h1 = await ctx.AcquireDistributedLockAsync("dup-key");
 
-        var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() =>
-            ctx.AcquireDistributedLockAsync("dup-key")
-        );
+        var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() => ctx.AcquireDistributedLockAsync("dup-key"));
         ex.Key.Should().Be("dup-key");
     }
 
@@ -255,18 +253,10 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         return Task.FromResult(handle);
     }
 
-    public IDistributedLockHandle Acquire(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        TimeSpan? timeout
-    ) => CreateHandle(context, connection, key);
+    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout) =>
+        CreateHandle(context, connection, key);
 
-    public IDistributedLockHandle? TryAcquire(
-        DbContext context,
-        DbConnection connection,
-        string key
-    )
+    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
     {
         lock (_gate)
         {
@@ -276,11 +266,7 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         }
     }
 
-    private IDistributedLockHandle CreateHandle(
-        DbContext context,
-        DbConnection connection,
-        string key
-    )
+    private IDistributedLockHandle CreateHandle(DbContext context, DbConnection connection, string key)
     {
         lock (_gate)
         {

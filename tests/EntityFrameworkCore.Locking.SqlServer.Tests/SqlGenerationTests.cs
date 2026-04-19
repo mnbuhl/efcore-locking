@@ -59,19 +59,14 @@ public class SqlGenerationTests
     [Fact]
     public void SupportsLockOptions_ForShare_ReturnsFalse()
     {
-        _generator
-            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare })
-            .Should()
-            .BeFalse();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare }).Should().BeFalse();
     }
 
     [Fact]
     public void SupportsLockOptions_SkipLocked_ReturnsTrue()
     {
         _generator
-            .SupportsLockOptions(
-                new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked }
-            )
+            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked })
             .Should()
             .BeTrue();
     }
@@ -79,11 +74,7 @@ public class SqlGenerationTests
     [Fact]
     public void GenerateLockClause_SkipLocked_ReturnsReadPastHint()
     {
-        var opts = new LockOptions
-        {
-            Mode = LockMode.ForUpdate,
-            Behavior = LockBehavior.SkipLocked,
-        };
+        var opts = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked };
         _generator.GenerateLockClause(opts).Should().Be("WITH (UPDLOCK, ROWLOCK, READPAST)");
     }
 
@@ -91,9 +82,7 @@ public class SqlGenerationTests
     public void SupportsLockOptions_ForUpdate_Wait_ReturnsTrue()
     {
         _generator
-            .SupportsLockOptions(
-                new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.Wait }
-            )
+            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.Wait })
             .Should()
             .BeTrue();
     }
@@ -102,9 +91,7 @@ public class SqlGenerationTests
     public void SupportsLockOptions_ForUpdate_NoWait_ReturnsTrue()
     {
         _generator
-            .SupportsLockOptions(
-                new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.NoWait }
-            )
+            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.NoWait })
             .Should()
             .BeTrue();
     }

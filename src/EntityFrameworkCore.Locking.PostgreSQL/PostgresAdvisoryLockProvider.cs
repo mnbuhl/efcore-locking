@@ -1,4 +1,3 @@
-using System.Data;
 using System.Data.Common;
 using System.IO.Hashing;
 using System.Text;
@@ -43,8 +42,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
                     .ConfigureAwait(false);
                 await using var setCmd = connection.CreateCommand();
                 setCmd.Transaction = tx;
-                setCmd.CommandText =
-                    $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
                 await setCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
 
                 await using var lockCmd = connection.CreateCommand();
@@ -62,8 +60,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
                 {
                     // Active transaction already open — SET LOCAL scopes to it, which is fine.
                     await using var setCmd = connection.CreateCommand();
-                    setCmd.CommandText =
-                        $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                    setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
                     await setCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                 }
                 lockCmd.CommandText = "SELECT pg_advisory_lock($1)";
@@ -100,12 +97,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key, lockKey);
     }
 
-    public IDistributedLockHandle Acquire(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        TimeSpan? timeout
-    )
+    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout)
     {
         var lockKey = ComputeKey(key);
         try
@@ -117,8 +109,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
                 using var tx = ((NpgsqlConnection)connection).BeginTransaction();
                 using var setCmd = connection.CreateCommand();
                 setCmd.Transaction = tx;
-                setCmd.CommandText =
-                    $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
                 setCmd.ExecuteNonQuery();
 
                 using var lockCmd = connection.CreateCommand();
@@ -134,8 +125,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
                 if (timeout.HasValue)
                 {
                     using var setCmd = connection.CreateCommand();
-                    setCmd.CommandText =
-                        $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                    setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
                     setCmd.ExecuteNonQuery();
                 }
                 using var lockCmd = connection.CreateCommand();
@@ -152,11 +142,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key, lockKey);
     }
 
-    public IDistributedLockHandle? TryAcquire(
-        DbContext context,
-        DbConnection connection,
-        string key
-    )
+    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
     {
         var lockKey = ComputeKey(key);
         using var cmd = connection.CreateCommand();
@@ -193,12 +179,6 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
             cmd.ExecuteScalar();
         }
 
-        return new DistributedLockHandle(
-            key,
-            connection,
-            openedByConnection: false,
-            ReleaseAsync,
-            ReleaseSync
-        );
+        return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
     }
 }

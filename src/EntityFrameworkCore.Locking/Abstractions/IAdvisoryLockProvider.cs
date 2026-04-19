@@ -22,11 +22,6 @@ public interface IAdvisoryLockProvider
         string key,
         CancellationToken ct
     );
-    IDistributedLockHandle Acquire(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        TimeSpan? timeout
-    );
+    IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout);
     IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key);
 }

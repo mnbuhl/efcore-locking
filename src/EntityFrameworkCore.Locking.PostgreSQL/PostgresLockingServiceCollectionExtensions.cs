@@ -27,14 +27,8 @@ public static class PostgresLockingServiceCollectionExtensions
         var extension = new LockingOptionsExtension(new PostgresLockingProvider());
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
 
-        optionsBuilder.ReplaceService<
-            IQuerySqlGeneratorFactory,
-            PostgresLockingQuerySqlGeneratorFactory
-        >();
-        optionsBuilder.AddInterceptors(
-            new LockingValidationInterceptor(),
-            new DistributedLockCleanupInterceptor()
-        );
+        optionsBuilder.ReplaceService<IQuerySqlGeneratorFactory, PostgresLockingQuerySqlGeneratorFactory>();
+        optionsBuilder.AddInterceptors(new LockingValidationInterceptor(), new DistributedLockCleanupInterceptor());
 
         return optionsBuilder;
     }

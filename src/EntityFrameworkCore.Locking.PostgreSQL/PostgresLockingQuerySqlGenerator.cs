@@ -74,9 +74,7 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
             LockMode.ForShare => "FOR SHARE",
             LockMode.ForNoKeyUpdate => "FOR NO KEY UPDATE",
             LockMode.ForKeyShare => "FOR KEY SHARE",
-            _ => throw new LockingConfigurationException(
-                $"Unsupported lock mode: {lockOptions.Mode}"
-            ),
+            _ => throw new LockingConfigurationException($"Unsupported lock mode: {lockOptions.Mode}"),
         };
 
         var of = tableAlias is not null ? $" OF \"{tableAlias}\"" : string.Empty;
@@ -86,9 +84,7 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
             LockBehavior.Wait => string.Empty,
             LockBehavior.SkipLocked => " SKIP LOCKED",
             LockBehavior.NoWait => " NOWAIT",
-            _ => throw new LockingConfigurationException(
-                $"Unsupported lock behavior: {lockOptions.Behavior}"
-            ),
+            _ => throw new LockingConfigurationException($"Unsupported lock behavior: {lockOptions.Behavior}"),
         };
 
         return $"{mode}{of}{modifier}";

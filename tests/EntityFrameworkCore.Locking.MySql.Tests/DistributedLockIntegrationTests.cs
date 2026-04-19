@@ -1,7 +1,7 @@
 using AwesomeAssertions;
+using EntityFrameworkCore.Locking;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
-using EntityFrameworkCore.Locking.Extensions;
 using EntityFrameworkCore.Locking.MySql.Tests.Fixtures;
 using EntityFrameworkCore.Locking.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -23,10 +23,7 @@ public class DistributedLockIntegrationTests(MySqlFixture fixture) : IAsyncLifet
     private TestDbContext CreateContext() =>
         new(
             new DbContextOptionsBuilder<TestDbContext>()
-                .UseMySql(
-                    fixture.ConnectionString,
-                    ServerVersion.AutoDetect(fixture.ConnectionString)
-                )
+                .UseMySql(fixture.ConnectionString, ServerVersion.AutoDetect(fixture.ConnectionString))
                 .UseLocking()
                 .Options
         );

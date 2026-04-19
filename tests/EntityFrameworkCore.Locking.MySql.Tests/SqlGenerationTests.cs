@@ -15,11 +15,7 @@ public class SqlGenerationTests
     [InlineData(LockMode.ForShare, LockBehavior.Wait, "FOR SHARE")]
     [InlineData(LockMode.ForShare, LockBehavior.NoWait, "FOR SHARE NOWAIT")]
     [InlineData(LockMode.ForShare, LockBehavior.SkipLocked, "FOR SHARE SKIP LOCKED")]
-    public void GenerateLockClause_ReturnsExpectedSql(
-        LockMode mode,
-        LockBehavior behavior,
-        string expected
-    )
+    public void GenerateLockClause_ReturnsExpectedSql(LockMode mode, LockBehavior behavior, string expected)
     {
         var opts = new LockOptions { Mode = mode, Behavior = behavior };
         _generator.GenerateLockClause(opts).Should().Be(expected);
@@ -41,10 +37,7 @@ public class SqlGenerationTests
             Behavior = LockBehavior.Wait,
             Timeout = TimeSpan.FromSeconds(5),
         };
-        _generator
-            .GeneratePreStatementSql(opts)
-            .Should()
-            .Be("SET SESSION innodb_lock_wait_timeout = 5");
+        _generator.GeneratePreStatementSql(opts).Should().Be("SET SESSION innodb_lock_wait_timeout = 5");
     }
 
     [Fact]
@@ -56,10 +49,7 @@ public class SqlGenerationTests
             Behavior = LockBehavior.Wait,
             Timeout = TimeSpan.FromMilliseconds(200),
         };
-        _generator
-            .GeneratePreStatementSql(opts)
-            .Should()
-            .Be("SET SESSION innodb_lock_wait_timeout = 1");
+        _generator.GeneratePreStatementSql(opts).Should().Be("SET SESSION innodb_lock_wait_timeout = 1");
     }
 
     [Theory]
@@ -84,18 +74,10 @@ public class SqlGenerationTests
     [Fact]
     public void SupportsLockOptions_AlwaysTrue()
     {
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate }).Should().BeTrue();
+        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare }).Should().BeTrue();
         _generator
-            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate })
-            .Should()
-            .BeTrue();
-        _generator
-            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare })
-            .Should()
-            .BeTrue();
-        _generator
-            .SupportsLockOptions(
-                new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked }
-            )
+            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked })
             .Should()
             .BeTrue();
     }

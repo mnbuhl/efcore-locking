@@ -60,8 +60,7 @@ public class ExceptionTranslationTests
 
     private static PostgresException CreatePostgresException(string sqlState)
     {
-        var ex = (PostgresException)
-            RuntimeHelpers.GetUninitializedObject(typeof(PostgresException));
+        var ex = (PostgresException)RuntimeHelpers.GetUninitializedObject(typeof(PostgresException));
 
         var field = typeof(PostgresException).GetField(
             "<SqlState>k__BackingField",

@@ -26,10 +26,5 @@ internal sealed class MySqlLockingQuerySqlGeneratorFactory : IQuerySqlGeneratorF
     }
 
     public QuerySqlGenerator Create() =>
-        new MySqlLockingQuerySqlGenerator(
-            _dependencies,
-            _typeMappingSource,
-            _mySqlOptions,
-            _lockSqlGenerator
-        );
+        new MySqlLockingQuerySqlGenerator(_dependencies, _typeMappingSource, _mySqlOptions, _lockSqlGenerator);
 }

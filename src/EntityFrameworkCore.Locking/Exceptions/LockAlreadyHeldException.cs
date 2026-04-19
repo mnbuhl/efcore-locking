@@ -1,7 +1,7 @@
 namespace EntityFrameworkCore.Locking.Exceptions;
 
 /// <summary>Thrown when the caller attempts to acquire a lock that is already held on the same connection.</summary>
-public class LockAlreadyHeldException : LockingException
+public class LockAlreadyHeldException : LockAcquisitionFailedException
 {
     public string Key { get; }
 

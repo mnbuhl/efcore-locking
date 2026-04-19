@@ -20,9 +20,9 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
 {
     private static string EncodeKey(string key)
     {
-        if (key.Length <= 64)
-            return key;
         var bytes = Encoding.UTF8.GetBytes(key);
+        if (bytes.Length <= 64)
+            return key;
         var hash = SHA256.HashData(bytes);
         return "lock:" + Convert.ToHexString(hash)[..58];
     }

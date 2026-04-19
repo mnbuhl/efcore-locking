@@ -20,17 +20,8 @@ internal static class DistributedLockRegistry
 
     private static readonly ConditionalWeakTable<DbContext, Entry> _table = new();
 
-    public static void ThrowIfHeld(DbContext ctx, DbConnection conn, string key)
-    {
-        var entry = _table.GetOrCreateValue(ctx);
-        lock (entry.Gate)
-        {
-            if (entry.ByConnection.TryGetValue(conn, out var keys) && keys.Contains(key))
-                throw new LockAlreadyHeldException(key);
-        }
-    }
-
-    public static void Register(DbContext ctx, DbConnection conn, string key)
+    /// <summary>Atomically checks for and registers the key. Throws <see cref="LockAlreadyHeldException"/> if already held.</summary>
+    public static void RegisterOrThrow(DbContext ctx, DbConnection conn, string key)
     {
         var entry = _table.GetOrCreateValue(ctx);
         lock (entry.Gate)
@@ -40,7 +31,8 @@ internal static class DistributedLockRegistry
                 keys = new HashSet<string>(StringComparer.Ordinal);
                 entry.ByConnection[conn] = keys;
             }
-            keys.Add(key);
+            if (!keys.Add(key))
+                throw new LockAlreadyHeldException(key);
         }
     }
 

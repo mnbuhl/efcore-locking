@@ -31,8 +31,7 @@ public static class DbContextDistributedLockExtensions
         var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct).ConfigureAwait(false);
         try
         {
-            DistributedLockRegistry.ThrowIfHeld(ctx, connection, key);
-            DistributedLockRegistry.Register(ctx, connection, key);
+            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             try
             {
                 return await provider.AcquireAsync(ctx, connection, key, timeout, ct).ConfigureAwait(false);
@@ -63,8 +62,7 @@ public static class DbContextDistributedLockExtensions
         var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct).ConfigureAwait(false);
         try
         {
-            DistributedLockRegistry.ThrowIfHeld(ctx, connection, key);
-            DistributedLockRegistry.Register(ctx, connection, key);
+            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             IDistributedLockHandle? handle;
             try
             {
@@ -100,8 +98,7 @@ public static class DbContextDistributedLockExtensions
         var (provider, connection, openedByMe) = PrepareSync(ctx, key);
         try
         {
-            DistributedLockRegistry.ThrowIfHeld(ctx, connection, key);
-            DistributedLockRegistry.Register(ctx, connection, key);
+            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             try
             {
                 return provider.Acquire(ctx, connection, key, timeout);
@@ -128,8 +125,7 @@ public static class DbContextDistributedLockExtensions
         var (provider, connection, openedByMe) = PrepareSync(ctx, key);
         try
         {
-            DistributedLockRegistry.ThrowIfHeld(ctx, connection, key);
-            DistributedLockRegistry.Register(ctx, connection, key);
+            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             IDistributedLockHandle? handle;
             try
             {

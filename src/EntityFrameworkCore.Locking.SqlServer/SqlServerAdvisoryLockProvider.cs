@@ -28,7 +28,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
     {
         var timeoutMs = ToTimeoutMs(timeout);
         await using var cmd = BuildAcquireCommand(connection, key, timeoutMs);
-        using var reg = ct.Register(static s => ((DbCommand)s!).Cancel(), cmd);
+        await using var reg = ct.Register(static s => ((DbCommand)s!).Cancel(), cmd);
         try
         {
             await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -36,10 +36,6 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         catch (SqlException) when (ct.IsCancellationRequested)
         {
             throw new OperationCanceledException(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
         }
 
         var returnCode = GetReturnCode(cmd);
@@ -62,12 +58,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key);
     }
 
-    public IDistributedLockHandle Acquire(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        TimeSpan? timeout
-    )
+    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout)
     {
         var timeoutMs = ToTimeoutMs(timeout);
         using var cmd = BuildAcquireCommand(connection, key, timeoutMs);
@@ -76,11 +67,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return MapReturnCode(returnCode, key, ct: default) ?? BuildHandle(context, connection, key);
     }
 
-    public IDistributedLockHandle? TryAcquire(
-        DbContext context,
-        DbConnection connection,
-        string key
-    )
+    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
     {
         using var cmd = BuildAcquireCommand(connection, key, timeoutMs: 0);
         cmd.ExecuteNonQuery();
@@ -112,8 +99,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return cmd;
     }
 
-    private static int GetReturnCode(DbCommand cmd) =>
-        (int)(cmd.Parameters["@ReturnValue"].Value ?? -999);
+    private static int GetReturnCode(DbCommand cmd) => (int)(cmd.Parameters["@ReturnValue"].Value ?? -999);
 
     /// <summary>
     /// Maps sp_getapplock return codes. Returns null on success (0 or 1); throws on all error codes.
@@ -123,24 +109,14 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return code switch
         {
             0 or 1 => null, // success — caller constructs the handle
-            -1 => throw new LockTimeoutException(
-                $"Timed out waiting for distributed lock '{key}'."
-            ),
+            -1 => throw new LockTimeoutException($"Timed out waiting for distributed lock '{key}'."),
             -2 => throw new OperationCanceledException(ct),
-            -3 => throw new DeadlockException(
-                $"Deadlock detected acquiring distributed lock '{key}'."
-            ),
-            _ => throw new LockAcquisitionFailedException(
-                $"sp_getapplock returned {code} for key '{key}'."
-            ),
+            -3 => throw new DeadlockException($"Deadlock detected acquiring distributed lock '{key}'."),
+            _ => throw new LockAcquisitionFailedException($"sp_getapplock returned {code} for key '{key}'."),
         };
     }
 
-    private static IDistributedLockHandle BuildHandle(
-        DbContext context,
-        DbConnection connection,
-        string key
-    )
+    private static IDistributedLockHandle BuildHandle(DbContext context, DbConnection connection, string key)
     {
         async Task ReleaseAsync(CancellationToken ct)
         {
@@ -156,13 +132,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
             cmd.ExecuteNonQuery();
         }
 
-        return new DistributedLockHandle(
-            key,
-            connection,
-            openedByConnection: false,
-            ReleaseAsync,
-            ReleaseSync
-        );
+        return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
     }
 
     private static DbCommand BuildReleaseCommand(DbConnection connection, string key)

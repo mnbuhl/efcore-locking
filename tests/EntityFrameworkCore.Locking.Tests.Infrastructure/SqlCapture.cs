@@ -36,11 +36,7 @@ public sealed class SqlCapture : DbCommandInterceptor
         return new ValueTask<DbDataReader>(result);
     }
 
-    public override object? ScalarExecuted(
-        DbCommand command,
-        CommandExecutedEventData eventData,
-        object? result
-    )
+    public override object? ScalarExecuted(DbCommand command, CommandExecutedEventData eventData, object? result)
     {
         _commands.Add(command.CommandText);
         return result;

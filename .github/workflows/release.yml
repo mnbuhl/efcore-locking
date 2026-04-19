@@ -1,16 +1,115 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type (applied to latest stable tag)"
+        type: choice
+        required: true
+        default: patch
+        options: [patch, minor, major]
+      pre_release:
+        description: "Pre-release channel (leave empty for a stable release)"
+        type: choice
+        required: false
+        default: ''
+        options: ['', alpha, beta, rc]
+      version_override:
+        description: "Manual version (e.g. 1.6.2 or 1.6.2-hotfix.1) — ignores bump and pre_release"
+        type: string
+        required: false
+
+permissions:
+  contents: write
 
 jobs:
-  pack-and-publish:
+  release:
+    name: Calculate version, pack, and publish
     runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+      new_tag: ${{ steps.version.outputs.new_tag }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Calculate version
+        id: version
+        shell: bash
+        run: |
+          set -eo pipefail
+
+          BUMP="${{ inputs.bump }}"
+          PRE_RELEASE="${{ inputs.pre_release }}"
+          VERSION_OVERRIDE="${{ inputs.version_override }}"
+
+          if [[ -n "$VERSION_OVERRIDE" ]]; then
+            NEW_VERSION="$VERSION_OVERRIDE"
+            NEW_TAG="v${NEW_VERSION}"
+          else
+            # Collect only stable tags (vX.Y.Z — no pre-release suffix)
+            mapfile -t STABLE_TAGS < <(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+
+            LATEST_STABLE="0.0.0"
+            if (( ${#STABLE_TAGS[@]} > 0 )); then
+              LATEST_STABLE=$(printf '%s\n' "${STABLE_TAGS[@]}" | sed 's/^v//' | sort -V | tail -n1)
+            fi
+
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_STABLE"
+
+            case "$BUMP" in
+              patch)
+                if [[ "$LATEST_STABLE" == "0.0.0" && ${#STABLE_TAGS[@]} -eq 0 ]]; then BASE="0.0.1"
+                else BASE="${MAJOR}.${MINOR}.$((PATCH + 1))"; fi
+                ;;
+              minor)
+                if [[ "$LATEST_STABLE" == "0.0.0" && ${#STABLE_TAGS[@]} -eq 0 ]]; then BASE="0.1.0"
+                else BASE="${MAJOR}.$((MINOR + 1)).0"; fi
+                ;;
+              major)
+                if [[ "$LATEST_STABLE" == "0.0.0" && ${#STABLE_TAGS[@]} -eq 0 ]]; then BASE="1.0.0"
+                else BASE="$((MAJOR + 1)).0.0"; fi
+                ;;
+              *) echo "Unsupported bump: $BUMP" >&2; exit 1 ;;
+            esac
+
+            if [[ -n "$PRE_RELEASE" ]]; then
+              # Auto-increment the pre-release number for this base version + channel
+              EXISTING=$(git tag --list "v${BASE}-${PRE_RELEASE}.*" \
+                | grep -E "^v${BASE/./\\.}-${PRE_RELEASE}\.[0-9]+$" || true)
+              if [[ -z "$EXISTING" ]]; then
+                N=1
+              else
+                N=$(printf '%s\n' "$EXISTING" \
+                  | sed "s/^v${BASE/./\\.}-${PRE_RELEASE}\.//" \
+                  | sort -n | tail -n1)
+                N=$((N + 1))
+              fi
+              NEW_VERSION="${BASE}-${PRE_RELEASE}.${N}"
+            else
+              NEW_VERSION="${BASE}"
+            fi
+
+            NEW_TAG="v${NEW_VERSION}"
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${NEW_TAG}" >/dev/null; then
+            echo "Tag ${NEW_TAG} already exists. Aborting." >&2
+            exit 1
+          fi
+
+          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "new_tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${NEW_VERSION} (tag: ${NEW_TAG})"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -24,7 +123,10 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Pack
-        run: dotnet pack --no-build --configuration Release --output ./artifacts
+        run: >
+          dotnet pack --no-build --configuration Release
+          --output ./artifacts
+          -p:Version=${{ steps.version.outputs.new_version }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -33,4 +135,34 @@ jobs:
           path: ./artifacts/*.nupkg
 
       - name: Push to NuGet
-        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: >
+          dotnet nuget push ./artifacts/*.nupkg
+          --api-key ${{ secrets.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Create and push tag
+        run: |
+          git tag -a "${{ steps.version.outputs.new_tag }}" \
+            -m "Release ${{ steps.version.outputs.new_tag }}"
+          git push origin "${{ steps.version.outputs.new_tag }}"
+
+  create-github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: release
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release.outputs.new_tag }}
+          generate_release_notes: true
+          prerelease: ${{ contains(needs.release.outputs.new_version, '-') }}
+          files: ./artifacts/*.nupkg

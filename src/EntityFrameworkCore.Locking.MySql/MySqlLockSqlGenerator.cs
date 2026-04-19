@@ -5,7 +5,7 @@ namespace EntityFrameworkCore.Locking.MySql;
 
 public sealed class MySqlLockSqlGenerator : ILockSqlGenerator
 {
-    public string? GenerateLockClause(LockOptions options)
+    public string GenerateLockClause(LockOptions options)
     {
         var mode = options.Mode switch
         {
@@ -19,9 +19,7 @@ public sealed class MySqlLockSqlGenerator : ILockSqlGenerator
             LockBehavior.Wait => string.Empty,
             LockBehavior.SkipLocked => " SKIP LOCKED",
             LockBehavior.NoWait => " NOWAIT",
-            _ => throw new LockingConfigurationException(
-                $"Unsupported lock behavior: {options.Behavior}"
-            ),
+            _ => throw new LockingConfigurationException($"Unsupported lock behavior: {options.Behavior}"),
         };
 
         return $"{mode}{modifier}";

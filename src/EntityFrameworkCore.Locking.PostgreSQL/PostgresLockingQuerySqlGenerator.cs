@@ -66,31 +66,20 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
         return result;
     }
 
-    private static string BuildLockClause(LockOptions lockOptions, string? tableAlias)
+    private string? BuildLockClause(LockOptions lockOptions, string? tableAlias)
     {
-        var mode = lockOptions.Mode switch
-        {
-            LockMode.ForUpdate => "FOR UPDATE",
-            LockMode.ForShare => "FOR SHARE",
-            LockMode.ForNoKeyUpdate => "FOR NO KEY UPDATE",
-            LockMode.ForKeyShare => "FOR KEY SHARE",
-            _ => throw new LockingConfigurationException(
-                $"Unsupported lock mode: {lockOptions.Mode}"
-            ),
-        };
+        var clause = _lockSqlGenerator.GenerateLockClause(lockOptions);
+        if (clause is null || tableAlias is null)
+            return clause;
 
-        var of = tableAlias is not null ? $" OF \"{tableAlias}\"" : string.Empty;
+        // Insert OF "alias" between mode and modifier (SKIP LOCKED / NOWAIT) for left-join queries.
+        // PostgreSQL rejects bare FOR UPDATE/SHARE on the nullable side of an outer join.
+        var modifierIndex = clause.IndexOf(" SKIP LOCKED", StringComparison.Ordinal);
+        if (modifierIndex < 0)
+            modifierIndex = clause.IndexOf(" NOWAIT", StringComparison.Ordinal);
 
-        var modifier = lockOptions.Behavior switch
-        {
-            LockBehavior.Wait => string.Empty,
-            LockBehavior.SkipLocked => " SKIP LOCKED",
-            LockBehavior.NoWait => " NOWAIT",
-            _ => throw new LockingConfigurationException(
-                $"Unsupported lock behavior: {lockOptions.Behavior}"
-            ),
-        };
-
-        return $"{mode}{of}{modifier}";
+        return modifierIndex < 0
+            ? $"{clause} OF \"{tableAlias}\""
+            : $"{clause[..modifierIndex]} OF \"{tableAlias}\"{clause[modifierIndex..]}";
     }
 }

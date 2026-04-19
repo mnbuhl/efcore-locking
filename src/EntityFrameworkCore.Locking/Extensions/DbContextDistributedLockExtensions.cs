@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace EntityFrameworkCore.Locking.Extensions;
+namespace EntityFrameworkCore.Locking;
 
 /// <summary>
 /// Extension methods on <see cref="DbContext"/> for acquiring distributed (advisory) locks.
@@ -29,16 +29,13 @@ public static class DbContextDistributedLockExtensions
         CancellationToken ct = default
     )
     {
-        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct)
-            .ConfigureAwait(false);
+        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct).ConfigureAwait(false);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             try
             {
-                return await provider
-                    .AcquireAsync(ctx, connection, key, timeout, ct)
-                    .ConfigureAwait(false);
+                return await provider.AcquireAsync(ctx, connection, key, timeout, ct).ConfigureAwait(false);
             }
             catch
             {
@@ -64,17 +61,14 @@ public static class DbContextDistributedLockExtensions
         CancellationToken ct = default
     )
     {
-        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct)
-            .ConfigureAwait(false);
+        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct).ConfigureAwait(false);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             IDistributedLockHandle? handle;
             try
             {
-                handle = await provider
-                    .TryAcquireAsync(ctx, connection, key, ct)
-                    .ConfigureAwait(false);
+                handle = await provider.TryAcquireAsync(ctx, connection, key, ct).ConfigureAwait(false);
             }
             catch
             {
@@ -166,11 +160,11 @@ public static class DbContextDistributedLockExtensions
         return lp?.AdvisoryLockProvider is not null;
     }
 
-    private static async Task<(
-        IAdvisoryLockProvider provider,
-        DbConnection connection,
-        bool openedByMe
-    )> PrepareAsync(DbContext ctx, string key, CancellationToken ct)
+    private static async Task<(IAdvisoryLockProvider provider, DbConnection connection, bool openedByMe)> PrepareAsync(
+        DbContext ctx,
+        string key,
+        CancellationToken ct
+    )
     {
         ValidateKey(key);
         var provider = ResolveProvider(ctx);
@@ -184,11 +178,10 @@ public static class DbContextDistributedLockExtensions
         return (provider, connection, openedByMe);
     }
 
-    private static (
-        IAdvisoryLockProvider provider,
-        DbConnection connection,
-        bool openedByMe
-    ) PrepareSync(DbContext ctx, string key)
+    private static (IAdvisoryLockProvider provider, DbConnection connection, bool openedByMe) PrepareSync(
+        DbContext ctx,
+        string key
+    )
     {
         ValidateKey(key);
         var provider = ResolveProvider(ctx);

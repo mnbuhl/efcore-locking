@@ -124,10 +124,7 @@ public partial class IntegrationTests
         await SeedAsync(ctx, categoryName: "Other", productName: "Widget");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var products = await ctx
-            .Products.Where(p => p.Category.Name == "Gadgets")
-            .ForUpdate()
-            .ToListAsync();
+        var products = await ctx.Products.Where(p => p.Category.Name == "Gadgets").ForUpdate().ToListAsync();
 
         products.Should().HaveCount(1);
         products[0].Name.Should().Be("Gizmo");
@@ -211,11 +208,7 @@ public partial class IntegrationTests
         var (_, id) = await SeedAsync(ctx);
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var product = await ctx
-            .Products.AsNoTracking()
-            .Where(p => p.Id == id)
-            .ForUpdate()
-            .FirstOrDefaultAsync();
+        var product = await ctx.Products.AsNoTracking().Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
         ctx.Entry(product!).State.Should().Be(Microsoft.EntityFrameworkCore.EntityState.Detached);

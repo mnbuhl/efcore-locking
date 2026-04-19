@@ -12,13 +12,6 @@ public interface ILockingProvider
     /// <summary>Provider name for diagnostics (e.g., "PostgreSQL", "MySQL", "SqlServer").</summary>
     string ProviderName { get; }
 
-    /// <summary>
-    /// Validates that the connected database version supports locking features.
-    /// Throws <see cref="Exceptions.LockingConfigurationException"/> if validation fails.
-    /// Called lazily on first locking query.
-    /// </summary>
-    Task ValidateProviderAsync(CancellationToken cancellationToken = default);
-
     /// <summary>Translates provider-specific database exceptions to typed locking exceptions.</summary>
     IExceptionTranslator ExceptionTranslator { get; }
 

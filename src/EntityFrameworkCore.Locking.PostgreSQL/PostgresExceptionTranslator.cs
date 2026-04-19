@@ -9,9 +9,7 @@ public sealed class PostgresExceptionTranslator : IExceptionTranslator
 {
     public LockingException? Translate(Exception exception)
     {
-        var pgEx =
-            exception as PostgresException
-            ?? (exception as Exception)?.InnerException as PostgresException;
+        var pgEx = exception as PostgresException ?? exception.InnerException as PostgresException;
 
         if (pgEx is null)
             return null;

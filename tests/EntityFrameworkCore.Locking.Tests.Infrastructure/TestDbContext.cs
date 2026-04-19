@@ -28,9 +28,7 @@ public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(
         {
             b.HasKey(ol => ol.Id);
             b.Property(ol => ol.UnitPrice).HasColumnType("decimal(18,2)");
-            b.HasOne(ol => ol.Product)
-                .WithMany(p => p.OrderLines)
-                .HasForeignKey(ol => ol.ProductId);
+            b.HasOne(ol => ol.Product).WithMany(p => p.OrderLines).HasForeignKey(ol => ol.ProductId);
         });
     }
 }

@@ -36,32 +36,20 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
     )
     {
         var encodedKey = EncodeKey(key);
-        var timeoutSeconds = timeout.HasValue
-            ? (long)Math.Ceiling(timeout.Value.TotalSeconds)
-            : -1L;
+        var timeoutSeconds = timeout.HasValue ? (long)Math.Ceiling(timeout.Value.TotalSeconds) : -1L;
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT GET_LOCK(@key, @timeout)";
         AddParam(cmd, "@key", encodedKey);
         AddParam(cmd, "@timeout", timeoutSeconds);
 
-        using var reg = ct.Register(static state => ((DbCommand)state!).Cancel(), cmd);
-        object? result;
-        try
-        {
-            result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
+        await using var reg = ct.Register(static state => ((DbCommand)state!).Cancel(), cmd);
+        object? result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
 
         return result switch
         {
             1L or 1 => BuildHandle(context, connection, key, encodedKey),
-            0L or 0 => throw new LockTimeoutException(
-                $"Timed out waiting for distributed lock '{key}'."
-            ),
+            0L or 0 => throw new LockTimeoutException($"Timed out waiting for distributed lock '{key}'."),
             _ => throw new LockAcquisitionFailedException(
                 $"GET_LOCK returned NULL for key '{key}' — possible error on the server."
             ),
@@ -88,17 +76,10 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         return result is 1L or 1 ? BuildHandle(context, connection, key, encodedKey) : null;
     }
 
-    public IDistributedLockHandle Acquire(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        TimeSpan? timeout
-    )
+    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout)
     {
         var encodedKey = EncodeKey(key);
-        var timeoutSeconds = timeout.HasValue
-            ? (long)Math.Ceiling(timeout.Value.TotalSeconds)
-            : -1L;
+        var timeoutSeconds = timeout.HasValue ? (long)Math.Ceiling(timeout.Value.TotalSeconds) : -1L;
 
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT GET_LOCK(@key, @timeout)";
@@ -109,20 +90,14 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         return result switch
         {
             1L or 1 => BuildHandle(context, connection, key, encodedKey),
-            0L or 0 => throw new LockTimeoutException(
-                $"Timed out waiting for distributed lock '{key}'."
-            ),
+            0L or 0 => throw new LockTimeoutException($"Timed out waiting for distributed lock '{key}'."),
             _ => throw new LockAcquisitionFailedException(
                 $"GET_LOCK returned NULL for key '{key}' — possible error on the server."
             ),
         };
     }
 
-    public IDistributedLockHandle? TryAcquire(
-        DbContext context,
-        DbConnection connection,
-        string key
-    )
+    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
     {
         var encodedKey = EncodeKey(key);
         using var cmd = connection.CreateCommand();
@@ -162,13 +137,7 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
             cmd.ExecuteScalar();
         }
 
-        return new DistributedLockHandle(
-            key,
-            connection,
-            openedByConnection: false,
-            ReleaseAsync,
-            ReleaseSync
-        );
+        return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
     }
 
     private static void AddParam(DbCommand cmd, string name, object value)

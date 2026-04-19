@@ -26,10 +26,5 @@ internal sealed class SqlServerLockingQuerySqlGeneratorFactory : IQuerySqlGenera
     }
 
     public QuerySqlGenerator Create() =>
-        new SqlServerLockingQuerySqlGenerator(
-            _dependencies,
-            _typeMappingSource,
-            _sqlServerOptions,
-            _lockSqlGenerator
-        );
+        new SqlServerLockingQuerySqlGenerator(_dependencies, _typeMappingSource, _sqlServerOptions, _lockSqlGenerator);
 }

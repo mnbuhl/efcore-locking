@@ -1,9 +1,9 @@
 using System.Data;
 using System.Data.Common;
 using AwesomeAssertions;
+using EntityFrameworkCore.Locking;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
-using EntityFrameworkCore.Locking.Extensions;
 using EntityFrameworkCore.Locking.Internal;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -102,9 +102,7 @@ public class DistributedLockUnitTests
         await using var ctx = CreateContext();
         await using var h1 = await ctx.AcquireDistributedLockAsync("dup-key");
 
-        var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() =>
-            ctx.AcquireDistributedLockAsync("dup-key")
-        );
+        var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() => ctx.AcquireDistributedLockAsync("dup-key"));
         ex.Key.Should().Be("dup-key");
     }
 
@@ -197,9 +195,6 @@ internal sealed class FakeLockingProvider : ILockingProvider
     public string ProviderName => "Fake";
     public IExceptionTranslator ExceptionTranslator { get; } = new FakeExceptionTranslator();
     public IAdvisoryLockProvider? AdvisoryLockProvider => _advisory;
-
-    public Task ValidateProviderAsync(CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
 }
 
 internal sealed class FakeLockSqlGenerator : ILockSqlGenerator
@@ -258,18 +253,10 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         return Task.FromResult(handle);
     }
 
-    public IDistributedLockHandle Acquire(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        TimeSpan? timeout
-    ) => CreateHandle(context, connection, key);
+    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout) =>
+        CreateHandle(context, connection, key);
 
-    public IDistributedLockHandle? TryAcquire(
-        DbContext context,
-        DbConnection connection,
-        string key
-    )
+    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
     {
         lock (_gate)
         {
@@ -279,11 +266,7 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         }
     }
 
-    private IDistributedLockHandle CreateHandle(
-        DbContext context,
-        DbConnection connection,
-        string key
-    )
+    private IDistributedLockHandle CreateHandle(DbContext context, DbConnection connection, string key)
     {
         lock (_gate)
         {

@@ -84,25 +84,18 @@ app.MapPost(
         Product? product;
         try
         {
-            product = await db
-                .Products.Where(p => p.Id == id)
-                .ForUpdate(LockBehavior.NoWait)
-                .FirstOrDefaultAsync();
+            product = await db.Products.Where(p => p.Id == id).ForUpdate(LockBehavior.NoWait).FirstOrDefaultAsync();
         }
         catch (LockTimeoutException)
         {
-            return Results.Conflict(
-                new { error = "Product is currently being updated. Please retry." }
-            );
+            return Results.Conflict(new { error = "Product is currently being updated. Please retry." });
         }
 
         if (product is null)
             return Results.NotFound();
 
         if (product.Stock < qty)
-            return Results.UnprocessableEntity(
-                new { error = "Insufficient stock.", available = product.Stock }
-            );
+            return Results.UnprocessableEntity(new { error = "Insufficient stock.", available = product.Stock });
 
         product.Stock -= qty;
         await db.SaveChangesAsync();
@@ -131,10 +124,7 @@ app.MapPut(
 
         await using var tx = await db.Database.BeginTransactionAsync();
 
-        var product = await db
-            .Products.Where(p => p.Id == id)
-            .ForNoKeyUpdate()
-            .FirstOrDefaultAsync();
+        var product = await db.Products.Where(p => p.Id == id).ForNoKeyUpdate().FirstOrDefaultAsync();
 
         if (product is null)
             return Results.NotFound();
@@ -183,9 +173,7 @@ app.MapPost(
             return Results.NotFound();
 
         if (product.Stock < qty)
-            return Results.UnprocessableEntity(
-                new { error = "Insufficient stock.", available = product.Stock }
-            );
+            return Results.UnprocessableEntity(new { error = "Insufficient stock.", available = product.Stock });
 
         product.Stock -= qty;
         await db.SaveChangesAsync();

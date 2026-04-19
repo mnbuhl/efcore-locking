@@ -5,9 +5,7 @@ namespace EntityFrameworkCore.Locking.PostgreSQL.Tests.Fixtures;
 
 public sealed class PostgresFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
-        .Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
 
     public string ConnectionString => _container.GetConnectionString();
 

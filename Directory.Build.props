@@ -13,11 +13,13 @@
     <RepositoryUrl>https://github.com/mnbuhl/efcore-locking</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>entity-framework efcore locking row-lock for-update select-for-update pessimistic</PackageTags>
-    <Version>1.0.0-alpha.1</Version>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.jpg</PackageIcon>
+    <PackageProjectUrl>https://github.com/mnbuhl/efcore-locking</PackageProjectUrl>
+    <Copyright>Copyright © 2026 mnbuhl</Copyright>
   </PropertyGroup>
 
-  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
+  <PropertyGroup Condition="!$(MSBuildProjectName.Contains('.Tests'))">
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- CS1591: missing XML doc — self-documenting public surface (exception ctors, record properties) -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
@@ -25,12 +27,13 @@
     <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 
-  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+  <PropertyGroup Condition="$(MSBuildProjectName.Contains('.Tests'))">
     <IsPackable>false</IsPackable>
     <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 
-  <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests')) and Exists('$(MSBuildThisFileDirectory)README.md')">
+  <ItemGroup Condition="!$(MSBuildProjectName.Contains('.Tests')) and Exists('$(MSBuildThisFileDirectory)README.md')">
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)icon.jpg" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

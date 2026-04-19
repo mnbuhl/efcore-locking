@@ -9,9 +9,7 @@ var connectionString =
     ?? "Host=localhost;Database=queue_sample;Username=postgres;Password=postgres";
 
 // --- Setup ---
-var optionsBuilder = new DbContextOptionsBuilder<JobDbContext>()
-    .UseNpgsql(connectionString)
-    .UseLocking();
+var optionsBuilder = new DbContextOptionsBuilder<JobDbContext>().UseNpgsql(connectionString).UseLocking();
 
 await using (var db = new JobDbContext(optionsBuilder.Options))
 {
@@ -23,11 +21,7 @@ await using (var db = new JobDbContext(optionsBuilder.Options))
         db.Jobs.AddRange(
             Enumerable
                 .Range(1, 20)
-                .Select(i => new Job
-                {
-                    Payload = $"task-{i:D3}",
-                    CreatedAt = DateTime.UtcNow.AddSeconds(-i),
-                })
+                .Select(i => new Job { Payload = $"task-{i:D3}", CreatedAt = DateTime.UtcNow.AddSeconds(-i) })
         );
         await db.SaveChangesAsync();
         Console.WriteLine("Seeded 20 jobs.");
@@ -37,9 +31,7 @@ await using (var db = new JobDbContext(optionsBuilder.Options))
 // --- Run 4 concurrent workers ---
 Console.WriteLine("Starting 4 concurrent workers...\n");
 
-var workers = Enumerable
-    .Range(1, 4)
-    .Select(i => RunWorkerAsync($"worker-{i}", optionsBuilder.Options));
+var workers = Enumerable.Range(1, 4).Select(i => RunWorkerAsync($"worker-{i}", optionsBuilder.Options));
 await Task.WhenAll(workers);
 
 Console.WriteLine("\nAll workers finished.");

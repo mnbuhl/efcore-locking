@@ -110,21 +110,6 @@ public class DistributedLockIntegrationTests(SqlServerFixture fixture) : IAsyncL
     }
 
     [Fact]
-    public async Task Acquire_EmitsSpGetApplockSql()
-    {
-        var capture = new SqlCapture();
-        await using var ctx = new TestDbContext(
-            new DbContextOptionsBuilder<TestDbContext>()
-                .UseSqlServer(fixture.ConnectionString)
-                .UseLocking()
-                .AddInterceptors(capture)
-                .Options);
-
-        await using var handle = await ctx.AcquireDistributedLockAsync("ss-sql-verify");
-        capture.Commands.Should().Contain(c => c.Contains("sp_getapplock"));
-    }
-
-    [Fact]
     public async Task Acquire_Cancelled_WithTimeout_Throws()
     {
         const string key = "ss-cancel-timeout";

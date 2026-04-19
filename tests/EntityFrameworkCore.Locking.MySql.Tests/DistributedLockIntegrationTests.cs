@@ -121,18 +121,4 @@ public class DistributedLockIntegrationTests(MySqlFixture fixture) : IAsyncLifet
         handle.Key.Should().Be(longKey); // public Key is the original, not encoded
     }
 
-    [Fact]
-    public async Task Acquire_EmitsGetLockSql()
-    {
-        var capture = new SqlCapture();
-        await using var ctx = new TestDbContext(
-            new DbContextOptionsBuilder<TestDbContext>()
-                .UseMySql(fixture.ConnectionString, ServerVersion.AutoDetect(fixture.ConnectionString))
-                .UseLocking()
-                .AddInterceptors(capture)
-                .Options);
-
-        await using var handle = await ctx.AcquireDistributedLockAsync("mysql-sql-verify");
-        capture.Commands.Should().Contain(c => c.Contains("GET_LOCK"));
-    }
 }

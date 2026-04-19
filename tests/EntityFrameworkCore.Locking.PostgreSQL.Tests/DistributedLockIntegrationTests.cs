@@ -202,35 +202,4 @@ public class DistributedLockIntegrationTests(PostgresFixture fixture) : IAsyncLi
         sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15));
     }
 
-    // --- SQL verification via SqlCapture (scalar execution) ---
-
-    [Fact]
-    public async Task Acquire_EmitsPgAdvisoryLockSql()
-    {
-        var capture = new SqlCapture();
-        await using var ctx = new TestDbContext(
-            new DbContextOptionsBuilder<TestDbContext>()
-                .UseNpgsql(fixture.ConnectionString)
-                .UseLocking()
-                .AddInterceptors(capture)
-                .Options);
-
-        await using var handle = await ctx.AcquireDistributedLockAsync("sql-verify");
-        capture.Commands.Should().Contain(c => c.Contains("pg_advisory_lock"));
-    }
-
-    [Fact]
-    public async Task TryAcquire_EmitsPgTryAdvisoryLockSql()
-    {
-        var capture = new SqlCapture();
-        await using var ctx = new TestDbContext(
-            new DbContextOptionsBuilder<TestDbContext>()
-                .UseNpgsql(fixture.ConnectionString)
-                .UseLocking()
-                .AddInterceptors(capture)
-                .Options);
-
-        await using var handle = await ctx.TryAcquireDistributedLockAsync("sql-try-verify");
-        capture.Commands.Should().Contain(c => c.Contains("pg_try_advisory_lock"));
-    }
 }

@@ -28,7 +28,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
     {
         var timeoutMs = ToTimeoutMs(timeout);
         await using var cmd = BuildAcquireCommand(connection, key, timeoutMs);
-        using var reg = ct.Register(static s => ((DbCommand)s!).Cancel(), cmd);
+        await using var reg = ct.Register(static s => ((DbCommand)s!).Cancel(), cmd);
         try
         {
             await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -36,10 +36,6 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         catch (SqlException) when (ct.IsCancellationRequested)
         {
             throw new OperationCanceledException(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
         }
 
         var returnCode = GetReturnCode(cmd);

@@ -1,12 +1,11 @@
 using EntityFrameworkCore.Locking.Abstractions;
-using EntityFrameworkCore.Locking.Exceptions;
 
 namespace EntityFrameworkCore.Locking.SqlServer;
 
 public sealed class SqlServerLockSqlGenerator : ILockSqlGenerator
 {
     // SQL Server uses table hints, not trailing clauses — the clause is embedded via VisitTable
-    public string? GenerateLockClause(LockOptions options) => BuildTableHint(options);
+    public string GenerateLockClause(LockOptions options) => BuildTableHint(options);
 
     public bool SupportsLockOptions(LockOptions options)
     {

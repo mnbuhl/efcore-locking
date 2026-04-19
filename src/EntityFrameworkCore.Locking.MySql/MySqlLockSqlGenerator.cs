@@ -5,7 +5,7 @@ namespace EntityFrameworkCore.Locking.MySql;
 
 public sealed class MySqlLockSqlGenerator : ILockSqlGenerator
 {
-    public string? GenerateLockClause(LockOptions options)
+    public string GenerateLockClause(LockOptions options)
     {
         var mode = options.Mode switch
         {

@@ -6,7 +6,7 @@ namespace EntityFrameworkCore.Locking.PostgreSQL;
 /// <summary>Generates PostgreSQL FOR UPDATE / FOR SHARE SQL fragments.</summary>
 public sealed class PostgresLockSqlGenerator : ILockSqlGenerator
 {
-    public string? GenerateLockClause(LockOptions options)
+    public string GenerateLockClause(LockOptions options)
     {
         var mode = options.Mode switch
         {

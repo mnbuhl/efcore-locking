@@ -5,10 +5,8 @@ These samples target **.NET 10** and reference the library source directly. Each
 ## Quick start
 
 ```bash
-# Start PostgreSQL via Docker
-docker run -d --name pg-samples \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 postgres:17
+# Start PostgreSQL via Docker Compose (creates both databases automatically)
+docker compose -f samples/docker-compose.yml up -d
 
 # Run a sample (connection string optional — defaults to localhost)
 dotnet run --project samples/QueueProcessor

@@ -13,7 +13,6 @@
     <RepositoryUrl>https://github.com/mnbuhl/efcore-locking</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>entity-framework efcore locking row-lock for-update select-for-update pessimistic</PackageTags>
-    <Version>1.0.0-alpha.1</Version>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 

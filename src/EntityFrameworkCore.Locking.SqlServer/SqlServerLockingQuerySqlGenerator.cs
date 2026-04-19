@@ -18,6 +18,7 @@ namespace EntityFrameworkCore.Locking.SqlServer;
 internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGenerator
 {
     private readonly ILockSqlGenerator _lockSqlGenerator;
+    private bool _lockingActive;
 
     public SqlServerLockingQuerySqlGenerator(
         QuerySqlGeneratorDependencies dependencies,
@@ -32,26 +33,28 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
 
     protected override Expression VisitSelect(SelectExpression selectExpression)
     {
-        // Validate tag+AsyncLocal consistency before generating SQL
-        bool hasLockTag = selectExpression.Tags.Any(t => t.StartsWith(LockTagConstants.Prefix));
         var lockOptions = LockContext.Current;
 
-        if (hasLockTag && lockOptions is null)
-            throw new LockingConfigurationException(
-                "Lock marker detected in query but LockContext is empty. "
-                    + "This indicates an AsyncLocal propagation failure. "
-                    + "Do not compose locking queries across async context boundaries."
-            );
+        if (
+            lockOptions is null
+            || !selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions))
+        )
+        {
+            _lockingActive = false;
+            return base.VisitSelect(selectExpression);
+        }
 
-        if (lockOptions is not null && hasLockTag)
-            UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);
-
+        UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);
+        _lockingActive = true;
         return base.VisitSelect(selectExpression);
     }
 
     protected override Expression VisitTable(TableExpression tableExpression)
     {
         var result = base.VisitTable(tableExpression);
+
+        if (!_lockingActive)
+            return result;
 
         var lockOptions = LockContext.Current;
         if (lockOptions is null)

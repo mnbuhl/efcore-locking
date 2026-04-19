@@ -290,6 +290,14 @@ catch (LockingConfigurationException ex)
 
 `net8.0`, `net9.0`, `net10.0`
 
+## Benchmarks
+
+The `benchmarks/` directory contains BenchmarkDotNet benchmarks measuring the overhead added by the locking SQL generator and interceptor across all three providers.
+
+```bash
+dotnet run -c Release --project benchmarks/EntityFrameworkCore.Locking.Benchmarks
+```
+
 ## License
 
 [MIT](LICENSE)

@@ -5,6 +5,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\EntityFrameworkCore.Locking\EntityFrameworkCore.Locking.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="AwesomeAssertions" />
   </ItemGroup>
 </Project>

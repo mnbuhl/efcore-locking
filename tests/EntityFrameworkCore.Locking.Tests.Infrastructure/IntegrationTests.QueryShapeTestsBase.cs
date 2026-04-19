@@ -1,13 +1,15 @@
 using AwesomeAssertions;
+using EntityFrameworkCore.Locking;
 using EntityFrameworkCore.Locking.Exceptions;
-using EntityFrameworkCore.Locking.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace EntityFrameworkCore.Locking.MySql.Tests;
+namespace EntityFrameworkCore.Locking.Tests.Infrastructure;
 
-public partial class IntegrationTests
+public abstract partial class IntegrationTestsBase
 {
+    // --- Include / navigation ---
+
     [Fact]
     public async Task ForUpdate_WithInclude_LoadsNavigationAndLocks()
     {
@@ -83,6 +85,8 @@ public partial class IntegrationTests
         await tx.RollbackAsync();
     }
 
+    // --- Join / relation filter ---
+
     [Fact]
     public async Task ForUpdate_FilteredByRelation_LocksMatchingRows()
     {
@@ -97,6 +101,8 @@ public partial class IntegrationTests
         products[0].Name.Should().Be("Gizmo");
         await tx.RollbackAsync();
     }
+
+    // --- Pagination ---
 
     [Fact]
     public async Task ForUpdate_WithOrderByAndTake_LocksPage()
@@ -164,6 +170,8 @@ public partial class IntegrationTests
         await tx.RollbackAsync();
     }
 
+    // --- AsNoTracking ---
+
     [Fact]
     public async Task ForUpdate_WithAsNoTracking_ExecutesSuccessfully()
     {
@@ -174,9 +182,11 @@ public partial class IntegrationTests
         var product = await ctx.Products.AsNoTracking().Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        ctx.Entry(product!).State.Should().Be(Microsoft.EntityFrameworkCore.EntityState.Detached);
+        ctx.Entry(product!).State.Should().Be(EntityState.Detached);
         await tx.RollbackAsync();
     }
+
+    // --- Unsupported shapes ---
 
     [Fact]
     public async Task ForUpdate_UnionQuery_ThrowsLockingConfigurationException()

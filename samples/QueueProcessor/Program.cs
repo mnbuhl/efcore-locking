@@ -36,6 +36,35 @@ await Task.WhenAll(workers);
 
 Console.WriteLine("\nAll workers finished.");
 
+// --- Maintenance sweep: requeue stale jobs ---
+// Only one process should run this at a time. TryAcquireDistributedLockAsync returns null
+// immediately if another process holds the lock, so stale-job cleanup is never duplicated.
+Console.WriteLine("\nRunning maintenance sweep...");
+await using (var db = new JobDbContext(optionsBuilder.Options))
+{
+    await using var sweepHandle = await db.TryAcquireDistributedLockAsync("jobs:maintenance-sweep");
+    if (sweepHandle is null)
+    {
+        Console.WriteLine("Another process is already running the sweep — skipping.");
+    }
+    else
+    {
+        var staleThreshold = DateTime.UtcNow.AddMinutes(-5);
+        var staleJobs = await db
+            .Jobs.Where(j => j.Status == JobStatus.Processing && j.CreatedAt < staleThreshold)
+            .ToListAsync();
+
+        foreach (var job in staleJobs)
+        {
+            job.Status = JobStatus.Pending;
+            job.WorkerId = null;
+        }
+
+        await db.SaveChangesAsync();
+        Console.WriteLine($"Requeued {staleJobs.Count} stale job(s).");
+    }
+}
+
 // --- Worker logic ---
 static async Task RunWorkerAsync(string workerId, DbContextOptions<JobDbContext> options)
 {

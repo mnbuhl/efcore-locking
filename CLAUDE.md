@@ -78,3 +78,25 @@ Each of the three provider projects (`EntityFrameworkCore.Locking.PostgreSQL`, `
 - `Directory.Build.props` — shared across all projects: targets `net8.0;net9.0;net10.0`, `Nullable=enable`, `TreatWarningsAsErrors=true`, suppresses `EF1001` (intentional EF Core internal API use) and `CS1591`.
 - `Directory.Packages.props` — centralized package version management; never add `Version="..."` to individual `.csproj` files.
 - Assertion library in tests is `AwesomeAssertions` (not FluentAssertions).
+
+### Test structure
+
+Integration tests are split between shared base classes and provider-specific files.
+
+**`tests/EntityFrameworkCore.Locking.Tests.Infrastructure/`** — shared base classes (class library, no `TestSdk`):
+
+| File | Base class | Shared tests |
+|------|------------|--------------|
+| `IntegrationTestsBase.cs` (partial) | `IntegrationTestsBase` | 6 core integration tests |
+| `IntegrationTests.QueryShapeTestsBase.cs` (partial) | `IntegrationTestsBase` | 8 query-shape tests |
+| `ConcurrencyTestsBase.cs` | `ConcurrencyTestsBase` | 7 concurrency tests |
+| `DistributedLockIntegrationTestsBase.cs` | `DistributedLockIntegrationTestsBase` | 8 distributed lock tests |
+
+Each provider test project (`PostgreSQL.Tests`, `MySql.Tests`, `SqlServer.Tests`) inherits from these bases. xUnit discovers and runs inherited `[Fact]` methods in the concrete derived classes, so all shared tests execute locally inside each provider project (Docker required).
+
+**Provider-specific tests** stay local to each project:
+- **PostgreSQL**: `ForNoKeyUpdate`/`ForKeyShare` lock modes, `Except`/`Intersect` shape validation, `ForShare` skip-locked, advisory lock blocking/registry/cancellation tests.
+- **MySQL**: `WaitTimeout` overridden to `TimeSpan.FromSeconds(1)` (innodb second-granularity); `DistributedLockAcquireTimeout` overridden to `TimeSpan.FromSeconds(1)` (GET_LOCK); long-key hashing test.
+- **SqlServer**: `WaitTimeout` overridden to `TimeSpan.FromMilliseconds(500)`; `ForShare` throws `LockingConfigurationException`; cancellation test.
+
+When adding a new integration test: if the behavior is identical across all three providers, add it to the appropriate base class. If it tests provider-specific SQL, exception mapping, or lock semantics, add it directly to that provider's test file.

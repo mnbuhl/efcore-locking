@@ -28,7 +28,9 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         var lockKey = ComputeKey(key);
         try
         {
-            if (timeout.HasValue)
+            var hasExistingTx = context.Database.CurrentTransaction is not null;
+
+            if (timeout.HasValue && !hasExistingTx)
             {
                 // Micro-transaction: SET LOCAL is auto-discarded on COMMIT; pg_advisory_lock is session-scoped and survives.
                 await using var tx = await ((NpgsqlConnection)connection).BeginTransactionAsync(ct).ConfigureAwait(false);
@@ -48,6 +50,13 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
             else
             {
                 await using var lockCmd = connection.CreateCommand();
+                if (timeout.HasValue)
+                {
+                    // Active transaction already open — SET LOCAL scopes to it, which is fine.
+                    await using var setCmd = connection.CreateCommand();
+                    setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                    await setCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                }
                 lockCmd.CommandText = "SELECT pg_advisory_lock($1)";
                 lockCmd.Parameters.Add(new NpgsqlParameter<long> { TypedValue = lockKey });
                 await lockCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
@@ -84,7 +93,9 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         var lockKey = ComputeKey(key);
         try
         {
-            if (timeout.HasValue)
+            var hasExistingTx = context.Database.CurrentTransaction is not null;
+
+            if (timeout.HasValue && !hasExistingTx)
             {
                 using var tx = ((NpgsqlConnection)connection).BeginTransaction();
                 using var setCmd = connection.CreateCommand();
@@ -102,6 +113,12 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
             }
             else
             {
+                if (timeout.HasValue)
+                {
+                    using var setCmd = connection.CreateCommand();
+                    setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                    setCmd.ExecuteNonQuery();
+                }
                 using var lockCmd = connection.CreateCommand();
                 lockCmd.CommandText = "SELECT pg_advisory_lock($1)";
                 lockCmd.Parameters.Add(new NpgsqlParameter<long> { TypedValue = lockKey });

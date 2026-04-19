@@ -31,14 +31,31 @@ internal sealed class DistributedLockHandle : IDistributedLockHandle
     {
         if (Interlocked.Exchange(ref _released, 1) != 0)
             return;
-        await _releaseAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _releaseAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Reset so the caller can retry if the unlock SQL failed.
+            Interlocked.Exchange(ref _released, 0);
+            throw;
+        }
     }
 
     public void Release()
     {
         if (Interlocked.Exchange(ref _released, 1) != 0)
             return;
-        _releaseSync();
+        try
+        {
+            _releaseSync();
+        }
+        catch
+        {
+            Interlocked.Exchange(ref _released, 0);
+            throw;
+        }
     }
 
     public ValueTask DisposeAsync() => new(ReleaseAsync(CancellationToken.None));

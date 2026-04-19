@@ -63,6 +63,8 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         AddParam(cmd, "@key", encodedKey);
 
         var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+        if (result is DBNull or null)
+            throw new LockAcquisitionFailedException($"GET_LOCK returned NULL for key '{key}' — possible error on the server.");
         return result is 1L or 1
             ? BuildHandle(context, connection, key, encodedKey)
             : null;
@@ -97,6 +99,8 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         AddParam(cmd, "@key", encodedKey);
 
         var result = cmd.ExecuteScalar();
+        if (result is DBNull or null)
+            throw new LockAcquisitionFailedException($"GET_LOCK returned NULL for key '{key}' — possible error on the server.");
         return result is 1L or 1
             ? BuildHandle(context, connection, key, encodedKey)
             : null;

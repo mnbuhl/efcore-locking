@@ -34,16 +34,25 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
     protected override Expression VisitSelect(SelectExpression selectExpression)
     {
         var lockOptions = LockContext.Current;
+        var previousLockingActive = _lockingActive;
 
-        if (lockOptions is null || !selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions)))
+        var isLockingSelect =
+            lockOptions is not null
+            && selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions));
+
+        if (!isLockingSelect)
         {
             _lockingActive = false;
-            return base.VisitSelect(selectExpression);
+            var innerResult = base.VisitSelect(selectExpression);
+            _lockingActive = previousLockingActive;
+            return innerResult;
         }
 
         UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);
         _lockingActive = true;
-        return base.VisitSelect(selectExpression);
+        var result = base.VisitSelect(selectExpression);
+        _lockingActive = previousLockingActive;
+        return result;
     }
 
     protected override Expression VisitTable(TableExpression tableExpression)

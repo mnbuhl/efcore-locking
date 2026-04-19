@@ -1,8 +1,16 @@
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore;
+
 namespace EntityFrameworkCore.Locking.Abstractions;
 
 /// <summary>
-/// Marker interface for Phase 2 advisory lock providers (pg_advisory_xact_lock, GET_LOCK, sp_getapplock).
-/// Empty in Phase 1 — defined so ILockingProvider.AdvisoryLockProvider compiles.
-/// Phase 2 adds members without changing the interface contract.
+/// Implemented by each database provider to issue advisory (distributed) lock SQL.
+/// Session-scoped: locks survive transactions and are released on dispose or connection close.
 /// </summary>
-public interface IAdvisoryLockProvider { }
+public interface IAdvisoryLockProvider
+{
+    Task<IDistributedLockHandle> AcquireAsync(DbContext context, DbConnection connection, string key, TimeSpan? timeout, CancellationToken ct);
+    Task<IDistributedLockHandle?> TryAcquireAsync(DbContext context, DbConnection connection, string key, CancellationToken ct);
+    IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout);
+    IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key);
+}

@@ -26,7 +26,7 @@ public static class MySqlLockingServiceCollectionExtensions
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
 
         optionsBuilder.ReplaceService<IQuerySqlGeneratorFactory, MySqlLockingQuerySqlGeneratorFactory>();
-        optionsBuilder.AddInterceptors(new LockingValidationInterceptor());
+        optionsBuilder.AddInterceptors(new LockingValidationInterceptor(), new DistributedLockCleanupInterceptor());
 
         return optionsBuilder;
     }

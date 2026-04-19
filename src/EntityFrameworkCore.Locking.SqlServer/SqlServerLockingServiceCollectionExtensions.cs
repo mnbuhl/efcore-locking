@@ -26,7 +26,7 @@ public static class SqlServerLockingServiceCollectionExtensions
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
 
         optionsBuilder.ReplaceService<IQuerySqlGeneratorFactory, SqlServerLockingQuerySqlGeneratorFactory>();
-        optionsBuilder.AddInterceptors(new LockingValidationInterceptor());
+        optionsBuilder.AddInterceptors(new LockingValidationInterceptor(), new DistributedLockCleanupInterceptor());
 
         return optionsBuilder;
     }

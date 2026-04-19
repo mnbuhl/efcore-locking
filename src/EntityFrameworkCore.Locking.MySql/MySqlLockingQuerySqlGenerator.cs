@@ -29,22 +29,14 @@ internal sealed class MySqlLockingQuerySqlGenerator : MySqlQuerySqlGenerator
     {
         var result = base.VisitSelect(selectExpression);
 
-        bool hasLockTag = selectExpression.Tags.Any(t => t.StartsWith(LockTagConstants.Prefix));
         var lockOptions = LockContext.Current;
 
-        if (hasLockTag && lockOptions is null)
-            throw new LockingConfigurationException(
-                "Lock marker detected in query but LockContext is empty. "
-                    + "This indicates an AsyncLocal propagation failure. "
-                    + "Do not compose locking queries across async context boundaries."
-            );
-
-        if (lockOptions is null || !hasLockTag)
+        if (lockOptions is null || !selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions)))
             return result;
 
         UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);
 
-        var clause = _lockSqlGenerator.GenerateLockClause(lockOptions);
+        var clause = _lockSqlGenerator.GenerateLockClause(lockOptions!);
         if (clause is not null)
         {
             Sql.AppendLine();

@@ -6,6 +6,9 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.MySql")]
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.SqlServer")]
 
+// Benchmark assemblies
+[assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.Benchmarks")]
+
 // Test assemblies
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.Tests")]
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.PostgreSQL.Tests")]

@@ -33,19 +33,9 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
     {
         var result = base.VisitSelect(selectExpression);
 
-        bool hasLockTag = selectExpression.Tags.Any(t => t.StartsWith(LockTagConstants.Prefix));
         var lockOptions = LockContext.Current;
 
-        // Tag present but AsyncLocal null: propagation failure — would silently cache unlocked SQL
-        if (hasLockTag && lockOptions is null)
-            throw new LockingConfigurationException(
-                "Lock marker detected in query but LockContext is empty. "
-                    + "This indicates an AsyncLocal propagation failure. "
-                    + "Do not compose locking queries across async context boundaries."
-            );
-
-        // AsyncLocal set but tag absent: stale AsyncLocal from a prior query — ignore
-        if (lockOptions is null || !hasLockTag)
+        if (lockOptions is null || !selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions)))
             return result;
 
         UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);
@@ -56,7 +46,7 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
         var hasLeftJoin = selectExpression.Tables.Skip(1).OfType<LeftJoinExpression>().Any();
         var rootAlias = hasLeftJoin ? selectExpression.Tables[0].Alias : null;
 
-        var clause = BuildLockClause(lockOptions, rootAlias);
+        var clause = BuildLockClause(lockOptions!, rootAlias);
         if (clause is not null)
         {
             Sql.AppendLine();

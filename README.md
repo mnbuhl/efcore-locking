@@ -295,8 +295,10 @@ catch (LockingConfigurationException ex)
 The `benchmarks/` directory contains BenchmarkDotNet benchmarks measuring the overhead added by the locking SQL generator and interceptor across all three providers.
 
 ```bash
-dotnet run -c Release --project benchmarks/EntityFrameworkCore.Locking.Benchmarks
+dotnet run -c Release --project benchmarks/EntityFrameworkCore.Locking.Benchmarks -- --version=<x.y.z>
 ```
+
+The `--version` argument is required and labels the results folder (`benchmarks/EntityFrameworkCore.Locking.Benchmarks/results/v<x.y.z>/`). Additional BenchmarkDotNet arguments (e.g. `--filter '*SqlGeneration*'`) can be appended after.
 
 ## License
 

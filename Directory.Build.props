@@ -15,6 +15,8 @@
     <PackageTags>entity-framework efcore locking row-lock for-update select-for-update pessimistic</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.jpg</PackageIcon>
+    <PackageProjectUrl>https://github.com/mnbuhl/efcore-locking</PackageProjectUrl>
+    <Copyright>Copyright © 2026 mnbuhl</Copyright>
   </PropertyGroup>
 
   <PropertyGroup Condition="!$(MSBuildProjectName.Contains('.Tests'))">

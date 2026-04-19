@@ -16,7 +16,8 @@ internal sealed class PostgresLockingQuerySqlGeneratorFactory : IQuerySqlGenerat
         QuerySqlGeneratorDependencies dependencies,
         IRelationalTypeMappingSource typeMappingSource,
         INpgsqlSingletonOptions npgsqlOptions,
-        ILockSqlGenerator lockSqlGenerator)
+        ILockSqlGenerator lockSqlGenerator
+    )
     {
         _dependencies = dependencies;
         _typeMappingSource = typeMappingSource;
@@ -24,11 +25,12 @@ internal sealed class PostgresLockingQuerySqlGeneratorFactory : IQuerySqlGenerat
         _lockSqlGenerator = lockSqlGenerator;
     }
 
-    public QuerySqlGenerator Create()
-        => new PostgresLockingQuerySqlGenerator(
+    public QuerySqlGenerator Create() =>
+        new PostgresLockingQuerySqlGenerator(
             _dependencies,
             _typeMappingSource,
             _npgsqlOptions.ReverseNullOrderingEnabled,
             _npgsqlOptions.PostgresVersion,
-            _lockSqlGenerator);
+            _lockSqlGenerator
+        );
 }

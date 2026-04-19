@@ -11,7 +11,9 @@ public static class PostgresLockingServiceCollectionExtensions
     /// Adds row-level locking support for PostgreSQL (Npgsql). Call after UseNpgsql().
     /// </summary>
     public static DbContextOptionsBuilder<TContext> UseLocking<TContext>(
-        this DbContextOptionsBuilder<TContext> optionsBuilder) where TContext : DbContext
+        this DbContextOptionsBuilder<TContext> optionsBuilder
+    )
+        where TContext : DbContext
     {
         ((DbContextOptionsBuilder)optionsBuilder).UseLocking();
         return optionsBuilder;
@@ -25,8 +27,14 @@ public static class PostgresLockingServiceCollectionExtensions
         var extension = new LockingOptionsExtension(new PostgresLockingProvider());
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
 
-        optionsBuilder.ReplaceService<IQuerySqlGeneratorFactory, PostgresLockingQuerySqlGeneratorFactory>();
-        optionsBuilder.AddInterceptors(new LockingValidationInterceptor(), new DistributedLockCleanupInterceptor());
+        optionsBuilder.ReplaceService<
+            IQuerySqlGeneratorFactory,
+            PostgresLockingQuerySqlGeneratorFactory
+        >();
+        optionsBuilder.AddInterceptors(
+            new LockingValidationInterceptor(),
+            new DistributedLockCleanupInterceptor()
+        );
 
         return optionsBuilder;
     }

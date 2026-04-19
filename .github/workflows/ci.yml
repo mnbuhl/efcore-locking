@@ -21,6 +21,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ matrix.dotnet }}
+          
+      - name: Install tools
+        run: dotnet tool restore
+        
+      - name: Check formatting
+        run: dotnet csharpier check .
 
       - name: Restore
         run: dotnet restore

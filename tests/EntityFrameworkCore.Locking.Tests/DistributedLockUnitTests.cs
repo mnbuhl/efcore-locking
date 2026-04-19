@@ -36,16 +36,14 @@ public class DistributedLockUnitTests
     public async Task AcquireDistributedLockAsync_NullKey_ThrowsArgumentException()
     {
         await using var ctx = CreateContext();
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            ctx.AcquireDistributedLockAsync(null!));
+        await Assert.ThrowsAsync<ArgumentException>(() => ctx.AcquireDistributedLockAsync(null!));
     }
 
     [Fact]
     public async Task AcquireDistributedLockAsync_EmptyKey_ThrowsArgumentException()
     {
         await using var ctx = CreateContext();
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            ctx.AcquireDistributedLockAsync(""));
+        await Assert.ThrowsAsync<ArgumentException>(() => ctx.AcquireDistributedLockAsync(""));
     }
 
     [Fact]
@@ -53,8 +51,7 @@ public class DistributedLockUnitTests
     {
         await using var ctx = CreateContext();
         var longKey = new string('a', 256);
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            ctx.AcquireDistributedLockAsync(longKey));
+        await Assert.ThrowsAsync<ArgumentException>(() => ctx.AcquireDistributedLockAsync(longKey));
     }
 
     [Fact]
@@ -106,7 +103,8 @@ public class DistributedLockUnitTests
         await using var h1 = await ctx.AcquireDistributedLockAsync("dup-key");
 
         var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() =>
-            ctx.AcquireDistributedLockAsync("dup-key"));
+            ctx.AcquireDistributedLockAsync("dup-key")
+        );
         ex.Key.Should().Be("dup-key");
     }
 
@@ -139,9 +137,7 @@ public class DistributedLockUnitTests
         var fakeConn = new FakeDbConnection();
         var fakeProvider = new FakeLockingProvider();
 
-        var options = new DbContextOptionsBuilder<FakeDbContext>()
-            .UseSqlServer(fakeConn)
-            .Options;
+        var options = new DbContextOptionsBuilder<FakeDbContext>().UseSqlServer(fakeConn).Options;
 
         // Inject the fake locking provider via the options extension
         var extension = new LockingOptionsExtension(fakeProvider);
@@ -178,7 +174,9 @@ internal sealed class FakeDbConnection : DbConnection
     public override ConnectionState State => ConnectionState.Open;
 
     public override void Open() { }
+
     public override void Close() { }
+
     public override Task OpenAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) =>
@@ -186,8 +184,7 @@ internal sealed class FakeDbConnection : DbConnection
 
     public override void ChangeDatabase(string databaseName) { }
 
-    protected override DbCommand CreateDbCommand() =>
-        throw new NotSupportedException();
+    protected override DbCommand CreateDbCommand() => throw new NotSupportedException();
 }
 
 // --- Fake ILockingProvider that delegates distributed lock to FakeAdvisoryLockProvider ---
@@ -200,13 +197,17 @@ internal sealed class FakeLockingProvider : ILockingProvider
     public string ProviderName => "Fake";
     public IExceptionTranslator ExceptionTranslator { get; } = new FakeExceptionTranslator();
     public IAdvisoryLockProvider? AdvisoryLockProvider => _advisory;
-    public Task ValidateProviderAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task ValidateProviderAsync(CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }
 
 internal sealed class FakeLockSqlGenerator : ILockSqlGenerator
 {
     public string? GenerateLockClause(LockOptions options) => null;
+
     public bool SupportsLockOptions(LockOptions options) => false;
+
     public string? GeneratePreStatementSql(LockOptions options) => null;
 }
 
@@ -224,14 +225,23 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
     private readonly object _gate = new();
 
     public Task<IDistributedLockHandle> AcquireAsync(
-        DbContext context, DbConnection connection, string key, TimeSpan? timeout, CancellationToken ct)
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        CancellationToken ct
+    )
     {
         var handle = CreateHandle(context, connection, key);
         return Task.FromResult(handle);
     }
 
     public Task<IDistributedLockHandle?> TryAcquireAsync(
-        DbContext context, DbConnection connection, string key, CancellationToken ct)
+        DbContext context,
+        DbConnection connection,
+        string key,
+        CancellationToken ct
+    )
     {
         IDistributedLockHandle? handle;
         lock (_gate)
@@ -248,10 +258,18 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         return Task.FromResult(handle);
     }
 
-    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout)
-        => CreateHandle(context, connection, key);
+    public IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout
+    ) => CreateHandle(context, connection, key);
 
-    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
+    public IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key
+    )
     {
         lock (_gate)
         {
@@ -261,7 +279,11 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         }
     }
 
-    private IDistributedLockHandle CreateHandle(DbContext context, DbConnection connection, string key)
+    private IDistributedLockHandle CreateHandle(
+        DbContext context,
+        DbConnection connection,
+        string key
+    )
     {
         lock (_gate)
         {
@@ -282,7 +304,8 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
                 Release(connection, key, context);
                 return Task.CompletedTask;
             },
-            releaseSync: () => Release(connection, key, context));
+            releaseSync: () => Release(connection, key, context)
+        );
     }
 
     private void Release(DbConnection connection, string key, DbContext context)

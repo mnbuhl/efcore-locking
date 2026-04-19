@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace EntityFrameworkCore.Locking.Tests.Infrastructure;
 
@@ -18,7 +18,8 @@ public sealed class SqlCapture : DbCommandInterceptor
     public override DbDataReader ReaderExecuted(
         DbCommand command,
         CommandExecutedEventData eventData,
-        DbDataReader result)
+        DbDataReader result
+    )
     {
         _commands.Add(command.CommandText);
         return result;
@@ -28,7 +29,8 @@ public sealed class SqlCapture : DbCommandInterceptor
         DbCommand command,
         CommandExecutedEventData eventData,
         DbDataReader result,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         _commands.Add(command.CommandText);
         return new ValueTask<DbDataReader>(result);
@@ -37,7 +39,8 @@ public sealed class SqlCapture : DbCommandInterceptor
     public override object? ScalarExecuted(
         DbCommand command,
         CommandExecutedEventData eventData,
-        object? result)
+        object? result
+    )
     {
         _commands.Add(command.CommandText);
         return result;
@@ -47,7 +50,8 @@ public sealed class SqlCapture : DbCommandInterceptor
         DbCommand command,
         CommandExecutedEventData eventData,
         object? result,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         _commands.Add(command.CommandText);
         return new ValueTask<object?>(result);

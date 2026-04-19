@@ -17,9 +17,16 @@ public static class PostgresQueryableLockingExtensions
     public static IQueryable<T> ForNoKeyUpdate<T>(
         this IQueryable<T> source,
         LockBehavior behavior = LockBehavior.Wait,
-        TimeSpan? timeout = null) where T : class
+        TimeSpan? timeout = null
+    )
+        where T : class
     {
-        var options = new LockOptions { Mode = LockMode.ForNoKeyUpdate, Behavior = behavior, Timeout = timeout };
+        var options = new LockOptions
+        {
+            Mode = LockMode.ForNoKeyUpdate,
+            Behavior = behavior,
+            Timeout = timeout,
+        };
         LockContext.Current = options;
         return source.TagWith(LockTagConstants.BuildTag(options));
     }
@@ -32,9 +39,16 @@ public static class PostgresQueryableLockingExtensions
     public static IQueryable<T> ForKeyShare<T>(
         this IQueryable<T> source,
         LockBehavior behavior = LockBehavior.Wait,
-        TimeSpan? timeout = null) where T : class
+        TimeSpan? timeout = null
+    )
+        where T : class
     {
-        var options = new LockOptions { Mode = LockMode.ForKeyShare, Behavior = behavior, Timeout = timeout };
+        var options = new LockOptions
+        {
+            Mode = LockMode.ForKeyShare,
+            Behavior = behavior,
+            Timeout = timeout,
+        };
         LockContext.Current = options;
         return source.TagWith(LockTagConstants.BuildTag(options));
     }

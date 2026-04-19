@@ -26,8 +26,11 @@ public partial class IntegrationTests
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.NoWait).ToQueryString()
-            .Should().Contain("FOR UPDATE NOWAIT");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.NoWait)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR UPDATE NOWAIT");
         await tx.RollbackAsync();
     }
 
@@ -37,8 +40,11 @@ public partial class IntegrationTests
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.SkipLocked).ToQueryString()
-            .Should().Contain("FOR UPDATE SKIP LOCKED");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.SkipLocked)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR UPDATE SKIP LOCKED");
         await tx.RollbackAsync();
     }
 
@@ -77,7 +83,8 @@ public partial class IntegrationTests
         await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        await ctx.Products.Where(p => p.Id == 1)
+        await ctx
+            .Products.Where(p => p.Id == 1)
             .ForUpdate(LockBehavior.Wait, TimeSpan.FromSeconds(2))
             .FirstOrDefaultAsync();
 

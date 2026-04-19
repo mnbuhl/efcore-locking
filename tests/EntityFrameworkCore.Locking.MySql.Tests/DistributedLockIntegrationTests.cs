@@ -21,10 +21,15 @@ public class DistributedLockIntegrationTests(MySqlFixture fixture) : IAsyncLifet
     public Task DisposeAsync() => Task.CompletedTask;
 
     private TestDbContext CreateContext() =>
-        new(new DbContextOptionsBuilder<TestDbContext>()
-            .UseMySql(fixture.ConnectionString, ServerVersion.AutoDetect(fixture.ConnectionString))
-            .UseLocking()
-            .Options);
+        new(
+            new DbContextOptionsBuilder<TestDbContext>()
+                .UseMySql(
+                    fixture.ConnectionString,
+                    ServerVersion.AutoDetect(fixture.ConnectionString)
+                )
+                .UseLocking()
+                .Options
+        );
 
     [Fact]
     public async Task Acquire_Free_Succeeds()
@@ -106,7 +111,8 @@ public class DistributedLockIntegrationTests(MySqlFixture fixture) : IAsyncLifet
         await using var ctx = CreateContext();
         await using var h1 = await ctx.AcquireDistributedLockAsync("mysql-double");
         var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() =>
-            ctx.AcquireDistributedLockAsync("mysql-double"));
+            ctx.AcquireDistributedLockAsync("mysql-double")
+        );
         ex.Key.Should().Be("mysql-double");
     }
 
@@ -120,5 +126,4 @@ public class DistributedLockIntegrationTests(MySqlFixture fixture) : IAsyncLifet
         handle.Should().NotBeNull();
         handle.Key.Should().Be(longKey); // public Key is the original, not encoded
     }
-
 }

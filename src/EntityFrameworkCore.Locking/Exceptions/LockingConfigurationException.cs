@@ -6,6 +6,9 @@ namespace EntityFrameworkCore.Locking.Exceptions;
 /// </summary>
 public class LockingConfigurationException : LockingException
 {
-    public LockingConfigurationException(string message) : base(message) { }
-    public LockingConfigurationException(string message, Exception innerException) : base(message, innerException) { }
+    public LockingConfigurationException(string message)
+        : base(message) { }
+
+    public LockingConfigurationException(string message, Exception innerException)
+        : base(message, innerException) { }
 }

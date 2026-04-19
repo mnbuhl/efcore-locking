@@ -25,7 +25,10 @@ public partial class IntegrationTests
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        var sql = ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.SkipLocked).ToQueryString();
+        var sql = ctx
+            .Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.SkipLocked)
+            .ToQueryString();
         sql.Should().Contain("WITH (UPDLOCK, ROWLOCK, READPAST)");
         sql.Should().NotContain("HOLDLOCK");
         await tx.RollbackAsync();
@@ -54,7 +57,8 @@ public partial class IntegrationTests
         await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        await ctx.Products.Where(p => p.Id == 1)
+        await ctx
+            .Products.Where(p => p.Id == 1)
             .ForUpdate(LockBehavior.NoWait)
             .FirstOrDefaultAsync();
 
@@ -70,7 +74,8 @@ public partial class IntegrationTests
         await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        await ctx.Products.Where(p => p.Id == 1)
+        await ctx
+            .Products.Where(p => p.Id == 1)
             .ForUpdate(LockBehavior.Wait, TimeSpan.FromMilliseconds(500))
             .FirstOrDefaultAsync();
 

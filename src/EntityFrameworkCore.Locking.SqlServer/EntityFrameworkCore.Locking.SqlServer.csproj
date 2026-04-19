@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <PackageId>EntityFrameworkCore.Locking.SqlServer</PackageId>
     <Description>SQL Server provider for EntityFrameworkCore.Locking.</Description>
@@ -10,5 +9,4 @@
     <ProjectReference Include="..\EntityFrameworkCore.Locking\EntityFrameworkCore.Locking.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[8.0.0, )" />
   </ItemGroup>
-
 </Project>

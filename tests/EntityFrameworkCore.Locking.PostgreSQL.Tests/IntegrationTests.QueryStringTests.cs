@@ -26,16 +26,22 @@ public partial class IntegrationTests
     public void ForUpdate_NoWait_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.NoWait).ToQueryString()
-            .Should().Contain("FOR UPDATE NOWAIT");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.NoWait)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR UPDATE NOWAIT");
     }
 
     [Fact]
     public void ForUpdate_SkipLocked_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1).ForUpdate(LockBehavior.SkipLocked).ToQueryString()
-            .Should().Contain("FOR UPDATE SKIP LOCKED");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForUpdate(LockBehavior.SkipLocked)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR UPDATE SKIP LOCKED");
     }
 
     [Fact]
@@ -51,63 +57,88 @@ public partial class IntegrationTests
     public void ForShare_NoWait_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1).ForShare(LockBehavior.NoWait).ToQueryString()
-            .Should().Contain("FOR SHARE NOWAIT");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForShare(LockBehavior.NoWait)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR SHARE NOWAIT");
     }
 
     [Fact]
     public void ForShare_SkipLocked_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1).ForShare(LockBehavior.SkipLocked).ToQueryString()
-            .Should().Contain("FOR SHARE SKIP LOCKED");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForShare(LockBehavior.SkipLocked)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR SHARE SKIP LOCKED");
     }
 
     [Fact]
     public void ForNoKeyUpdate_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1).ForNoKeyUpdate().ToQueryString()
-            .Should().Contain("FOR NO KEY UPDATE");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForNoKeyUpdate()
+            .ToQueryString()
+            .Should()
+            .Contain("FOR NO KEY UPDATE");
     }
 
     [Fact]
     public void ForNoKeyUpdate_NoWait_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1).ForNoKeyUpdate(LockBehavior.NoWait).ToQueryString()
-            .Should().Contain("FOR NO KEY UPDATE NOWAIT");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForNoKeyUpdate(LockBehavior.NoWait)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR NO KEY UPDATE NOWAIT");
     }
 
     [Fact]
     public void ForNoKeyUpdate_SkipLocked_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1).ForNoKeyUpdate(LockBehavior.SkipLocked).ToQueryString()
-            .Should().Contain("FOR NO KEY UPDATE SKIP LOCKED");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForNoKeyUpdate(LockBehavior.SkipLocked)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR NO KEY UPDATE SKIP LOCKED");
     }
 
     [Fact]
     public void ForKeyShare_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1).ForKeyShare().ToQueryString()
-            .Should().Contain("FOR KEY SHARE");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForKeyShare()
+            .ToQueryString()
+            .Should()
+            .Contain("FOR KEY SHARE");
     }
 
     [Fact]
     public void ForKeyShare_NoWait_GeneratesExactSql()
     {
         using var ctx = CreateContext();
-        ctx.Products.Where(p => p.Id == 1).ForKeyShare(LockBehavior.NoWait).ToQueryString()
-            .Should().Contain("FOR KEY SHARE NOWAIT");
+        ctx.Products.Where(p => p.Id == 1)
+            .ForKeyShare(LockBehavior.NoWait)
+            .ToQueryString()
+            .Should()
+            .Contain("FOR KEY SHARE NOWAIT");
     }
 
     [Fact]
     public void ForUpdate_WithLeftJoin_GeneratesForUpdateOf()
     {
         using var ctx = CreateContext();
-        var sql = ctx.Products.Include(p => p.OrderLines).Where(p => p.Id == 1).ForUpdate().ToQueryString();
+        var sql = ctx
+            .Products.Include(p => p.OrderLines)
+            .Where(p => p.Id == 1)
+            .ForUpdate()
+            .ToQueryString();
         sql.Should().Contain("FOR UPDATE OF");
     }
 
@@ -125,8 +156,10 @@ public partial class IntegrationTests
     {
         await using var ctx = CreateContext();
         await ctx.Database.EnsureCreatedAsync();
-        var (capture, captureCtx) = (new EntityFrameworkCore.Locking.Tests.Infrastructure.SqlCapture(),
-            CreateContextWithCapture());
+        var (capture, captureCtx) = (
+            new EntityFrameworkCore.Locking.Tests.Infrastructure.SqlCapture(),
+            CreateContextWithCapture()
+        );
         _ = captureCtx.capture;
 
         var (ctx2, cap) = CreateContextWithCapture();
@@ -146,7 +179,8 @@ public partial class IntegrationTests
         await ctx.Database.EnsureCreatedAsync();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        await ctx.Products.Where(p => p.Id == 1)
+        await ctx
+            .Products.Where(p => p.Id == 1)
             .ForUpdate(LockBehavior.Wait, TimeSpan.FromMilliseconds(200))
             .FirstOrDefaultAsync();
 

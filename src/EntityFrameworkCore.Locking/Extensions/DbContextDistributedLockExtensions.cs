@@ -26,15 +26,19 @@ public static class DbContextDistributedLockExtensions
         this DbContext ctx,
         string key,
         TimeSpan? timeout = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
-        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct).ConfigureAwait(false);
+        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct)
+            .ConfigureAwait(false);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             try
             {
-                return await provider.AcquireAsync(ctx, connection, key, timeout, ct).ConfigureAwait(false);
+                return await provider
+                    .AcquireAsync(ctx, connection, key, timeout, ct)
+                    .ConfigureAwait(false);
             }
             catch
             {
@@ -57,16 +61,20 @@ public static class DbContextDistributedLockExtensions
     public static async Task<IDistributedLockHandle?> TryAcquireDistributedLockAsync(
         this DbContext ctx,
         string key,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
-        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct).ConfigureAwait(false);
+        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct)
+            .ConfigureAwait(false);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             IDistributedLockHandle? handle;
             try
             {
-                handle = await provider.TryAcquireAsync(ctx, connection, key, ct).ConfigureAwait(false);
+                handle = await provider
+                    .TryAcquireAsync(ctx, connection, key, ct)
+                    .ConfigureAwait(false);
             }
             catch
             {
@@ -93,7 +101,8 @@ public static class DbContextDistributedLockExtensions
     public static IDistributedLockHandle AcquireDistributedLock(
         this DbContext ctx,
         string key,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null
+    )
     {
         var (provider, connection, openedByMe) = PrepareSync(ctx, key);
         try
@@ -118,9 +127,7 @@ public static class DbContextDistributedLockExtensions
     }
 
     /// <summary>Attempts to acquire a distributed lock synchronously. Returns null if contested.</summary>
-    public static IDistributedLockHandle? TryAcquireDistributedLock(
-        this DbContext ctx,
-        string key)
+    public static IDistributedLockHandle? TryAcquireDistributedLock(this DbContext ctx, string key)
     {
         var (provider, connection, openedByMe) = PrepareSync(ctx, key);
         try
@@ -159,8 +166,11 @@ public static class DbContextDistributedLockExtensions
         return lp?.AdvisoryLockProvider is not null;
     }
 
-    private static async Task<(IAdvisoryLockProvider provider, DbConnection connection, bool openedByMe)> PrepareAsync(
-        DbContext ctx, string key, CancellationToken ct)
+    private static async Task<(
+        IAdvisoryLockProvider provider,
+        DbConnection connection,
+        bool openedByMe
+    )> PrepareAsync(DbContext ctx, string key, CancellationToken ct)
     {
         ValidateKey(key);
         var provider = ResolveProvider(ctx);
@@ -174,8 +184,11 @@ public static class DbContextDistributedLockExtensions
         return (provider, connection, openedByMe);
     }
 
-    private static (IAdvisoryLockProvider provider, DbConnection connection, bool openedByMe) PrepareSync(
-        DbContext ctx, string key)
+    private static (
+        IAdvisoryLockProvider provider,
+        DbConnection connection,
+        bool openedByMe
+    ) PrepareSync(DbContext ctx, string key)
     {
         ValidateKey(key);
         var provider = ResolveProvider(ctx);
@@ -202,10 +215,12 @@ public static class DbContextDistributedLockExtensions
         var lp = ctx.GetInfrastructure().GetService<ILockingProvider>();
         if (lp is null)
             throw new LockingConfigurationException(
-                "No ILockingProvider is registered. Call UseLocking() when configuring the DbContext.");
+                "No ILockingProvider is registered. Call UseLocking() when configuring the DbContext."
+            );
         if (lp.AdvisoryLockProvider is null)
             throw new LockingConfigurationException(
-                $"The '{lp.ProviderName}' provider does not support distributed locks.");
+                $"The '{lp.ProviderName}' provider does not support distributed locks."
+            );
         return lp.AdvisoryLockProvider;
     }
 }

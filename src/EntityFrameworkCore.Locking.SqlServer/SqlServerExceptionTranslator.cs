@@ -8,8 +8,7 @@ public sealed class SqlServerExceptionTranslator : IExceptionTranslator
 {
     public LockingException? Translate(Exception exception)
     {
-        var sqlEx = exception as SqlException
-            ?? exception.InnerException as SqlException;
+        var sqlEx = exception as SqlException ?? exception.InnerException as SqlException;
 
         if (sqlEx is null)
             return null;
@@ -19,7 +18,7 @@ public sealed class SqlServerExceptionTranslator : IExceptionTranslator
         {
             1205 => new DeadlockException("SQL Server deadlock detected.", sqlEx),
             1222 => new LockTimeoutException("SQL Server lock request timeout exceeded.", sqlEx),
-            _ => null
+            _ => null,
         };
     }
 }

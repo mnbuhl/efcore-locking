@@ -1,9 +1,9 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.PostgreSQL;
 using Npgsql;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace EntityFrameworkCore.Locking.PostgreSQL.Tests;
@@ -60,24 +60,29 @@ public class ExceptionTranslationTests
 
     private static PostgresException CreatePostgresException(string sqlState)
     {
-        var ex = (PostgresException)RuntimeHelpers.GetUninitializedObject(typeof(PostgresException));
+        var ex = (PostgresException)
+            RuntimeHelpers.GetUninitializedObject(typeof(PostgresException));
 
         var field = typeof(PostgresException).GetField(
             "<SqlState>k__BackingField",
-            BindingFlags.NonPublic | BindingFlags.Instance);
+            BindingFlags.NonPublic | BindingFlags.Instance
+        );
 
         if (field is null)
         {
             field = typeof(PostgresException)
                 .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
-                .FirstOrDefault(f => f.Name.Contains("SqlState", StringComparison.OrdinalIgnoreCase)
-                                  || f.Name.Contains("sqlState", StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(f =>
+                    f.Name.Contains("SqlState", StringComparison.OrdinalIgnoreCase)
+                    || f.Name.Contains("sqlState", StringComparison.OrdinalIgnoreCase)
+                );
         }
 
         if (field is null)
             throw new InvalidOperationException(
-                $"Cannot locate SqlState backing field on PostgresException. " +
-                $"Available fields: {string.Join(", ", typeof(PostgresException).GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Select(f => f.Name))}");
+                $"Cannot locate SqlState backing field on PostgresException. "
+                    + $"Available fields: {string.Join(", ", typeof(PostgresException).GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Select(f => f.Name))}"
+            );
 
         field.SetValue(ex, sqlState);
         return ex;

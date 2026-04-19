@@ -9,13 +9,21 @@ namespace EntityFrameworkCore.Locking.Internal;
 /// </summary>
 internal sealed class DistributedLockCleanupInterceptor : DbConnectionInterceptor
 {
-    public override InterceptionResult ConnectionClosing(DbConnection connection, ConnectionEventData eventData, InterceptionResult result)
+    public override InterceptionResult ConnectionClosing(
+        DbConnection connection,
+        ConnectionEventData eventData,
+        InterceptionResult result
+    )
     {
         Cleanup(connection, eventData);
         return result;
     }
 
-    public override ValueTask<InterceptionResult> ConnectionClosingAsync(DbConnection connection, ConnectionEventData eventData, InterceptionResult result)
+    public override ValueTask<InterceptionResult> ConnectionClosingAsync(
+        DbConnection connection,
+        ConnectionEventData eventData,
+        InterceptionResult result
+    )
     {
         Cleanup(connection, eventData);
         return ValueTask.FromResult(result);
@@ -38,6 +46,7 @@ internal sealed class DistributedLockCleanupInterceptor : DbConnectionIntercepto
         // The physical advisory lock will be released automatically when the server closes the session.
         // Log a diagnostic warning that caller forgot to dispose lock handles.
         System.Diagnostics.Debug.WriteLine(
-            $"[EntityFrameworkCore.Locking] WARNING: {heldKeys.Count} distributed lock(s) were not released before connection close: [{string.Join(", ", heldKeys)}]. Always dispose IDistributedLockHandle before disposing DbContext.");
+            $"[EntityFrameworkCore.Locking] WARNING: {heldKeys.Count} distributed lock(s) were not released before connection close: [{string.Join(", ", heldKeys)}]. Always dispose IDistributedLockHandle before disposing DbContext."
+        );
     }
 }

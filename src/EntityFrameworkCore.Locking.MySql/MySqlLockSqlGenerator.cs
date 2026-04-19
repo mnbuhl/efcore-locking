@@ -11,7 +11,7 @@ public sealed class MySqlLockSqlGenerator : ILockSqlGenerator
         {
             LockMode.ForUpdate => "FOR UPDATE",
             LockMode.ForShare => "FOR SHARE",
-            _ => throw new LockingConfigurationException($"Unsupported lock mode: {options.Mode}")
+            _ => throw new LockingConfigurationException($"Unsupported lock mode: {options.Mode}"),
         };
 
         var modifier = options.Behavior switch
@@ -19,7 +19,9 @@ public sealed class MySqlLockSqlGenerator : ILockSqlGenerator
             LockBehavior.Wait => string.Empty,
             LockBehavior.SkipLocked => " SKIP LOCKED",
             LockBehavior.NoWait => " NOWAIT",
-            _ => throw new LockingConfigurationException($"Unsupported lock behavior: {options.Behavior}")
+            _ => throw new LockingConfigurationException(
+                $"Unsupported lock behavior: {options.Behavior}"
+            ),
         };
 
         return $"{mode}{modifier}";

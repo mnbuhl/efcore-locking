@@ -23,7 +23,12 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
     }
 
     public async Task<IDistributedLockHandle> AcquireAsync(
-        DbContext context, DbConnection connection, string key, TimeSpan? timeout, CancellationToken ct)
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        CancellationToken ct
+    )
     {
         var lockKey = ComputeKey(key);
         try
@@ -33,10 +38,13 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
             if (timeout.HasValue && !hasExistingTx)
             {
                 // Micro-transaction: SET LOCAL is auto-discarded on COMMIT; pg_advisory_lock is session-scoped and survives.
-                await using var tx = await ((NpgsqlConnection)connection).BeginTransactionAsync(ct).ConfigureAwait(false);
+                await using var tx = await ((NpgsqlConnection)connection)
+                    .BeginTransactionAsync(ct)
+                    .ConfigureAwait(false);
                 await using var setCmd = connection.CreateCommand();
                 setCmd.Transaction = tx;
-                setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                setCmd.CommandText =
+                    $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
                 await setCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
 
                 await using var lockCmd = connection.CreateCommand();
@@ -54,7 +62,8 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
                 {
                     // Active transaction already open — SET LOCAL scopes to it, which is fine.
                     await using var setCmd = connection.CreateCommand();
-                    setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                    setCmd.CommandText =
+                        $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
                     await setCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                 }
                 lockCmd.CommandText = "SELECT pg_advisory_lock($1)";
@@ -75,7 +84,11 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
     }
 
     public async Task<IDistributedLockHandle?> TryAcquireAsync(
-        DbContext context, DbConnection connection, string key, CancellationToken ct)
+        DbContext context,
+        DbConnection connection,
+        string key,
+        CancellationToken ct
+    )
     {
         var lockKey = ComputeKey(key);
         await using var cmd = connection.CreateCommand();
@@ -88,7 +101,11 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
     }
 
     public IDistributedLockHandle Acquire(
-        DbContext context, DbConnection connection, string key, TimeSpan? timeout)
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout
+    )
     {
         var lockKey = ComputeKey(key);
         try
@@ -100,7 +117,8 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
                 using var tx = ((NpgsqlConnection)connection).BeginTransaction();
                 using var setCmd = connection.CreateCommand();
                 setCmd.Transaction = tx;
-                setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                setCmd.CommandText =
+                    $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
                 setCmd.ExecuteNonQuery();
 
                 using var lockCmd = connection.CreateCommand();
@@ -116,7 +134,8 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
                 if (timeout.HasValue)
                 {
                     using var setCmd = connection.CreateCommand();
-                    setCmd.CommandText = $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
+                    setCmd.CommandText =
+                        $"SET LOCAL lock_timeout = '{(long)timeout.Value.TotalMilliseconds}ms'";
                     setCmd.ExecuteNonQuery();
                 }
                 using var lockCmd = connection.CreateCommand();
@@ -134,7 +153,10 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
     }
 
     public IDistributedLockHandle? TryAcquire(
-        DbContext context, DbConnection connection, string key)
+        DbContext context,
+        DbConnection connection,
+        string key
+    )
     {
         var lockKey = ComputeKey(key);
         using var cmd = connection.CreateCommand();
@@ -146,7 +168,12 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key, lockKey);
     }
 
-    private static IDistributedLockHandle BuildHandle(DbContext context, DbConnection connection, string key, long lockKey)
+    private static IDistributedLockHandle BuildHandle(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        long lockKey
+    )
     {
         async Task ReleaseAsync(CancellationToken ct)
         {
@@ -166,6 +193,12 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
             cmd.ExecuteScalar();
         }
 
-        return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
+        return new DistributedLockHandle(
+            key,
+            connection,
+            openedByConnection: false,
+            ReleaseAsync,
+            ReleaseSync
+        );
     }
 }

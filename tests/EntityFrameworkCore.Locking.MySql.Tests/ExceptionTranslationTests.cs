@@ -1,9 +1,9 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.MySql;
 using MySqlConnector;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace EntityFrameworkCore.Locking.MySql.Tests;
@@ -66,20 +66,24 @@ public class ExceptionTranslationTests
 
         var field = typeof(MySqlException).GetField(
             "<Number>k__BackingField",
-            BindingFlags.NonPublic | BindingFlags.Instance);
+            BindingFlags.NonPublic | BindingFlags.Instance
+        );
 
         if (field is null)
         {
             field = typeof(MySqlException)
                 .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
-                .FirstOrDefault(f => f.Name.Contains("Number", StringComparison.OrdinalIgnoreCase)
-                                  || f.Name.Contains("number", StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(f =>
+                    f.Name.Contains("Number", StringComparison.OrdinalIgnoreCase)
+                    || f.Name.Contains("number", StringComparison.OrdinalIgnoreCase)
+                );
         }
 
         if (field is null)
             throw new InvalidOperationException(
-                $"Cannot locate Number backing field on MySqlException. " +
-                $"Available: {string.Join(", ", typeof(MySqlException).GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Select(f => f.Name))}");
+                $"Cannot locate Number backing field on MySqlException. "
+                    + $"Available: {string.Join(", ", typeof(MySqlException).GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Select(f => f.Name))}"
+            );
 
         field.SetValue(ex, number);
         return ex;

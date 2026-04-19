@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <PackageId>EntityFrameworkCore.Locking</PackageId>
     <Description>Row-level locking for EF Core via ForUpdate() and ForShare() LINQ extension methods.</Description>
@@ -14,5 +13,4 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="[8.0.0, )" />
   </ItemGroup>
-
 </Project>

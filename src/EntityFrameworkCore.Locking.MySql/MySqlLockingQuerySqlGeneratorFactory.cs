@@ -16,7 +16,8 @@ internal sealed class MySqlLockingQuerySqlGeneratorFactory : IQuerySqlGeneratorF
         QuerySqlGeneratorDependencies dependencies,
         IRelationalTypeMappingSource typeMappingSource,
         IMySqlOptions mySqlOptions,
-        ILockSqlGenerator lockSqlGenerator)
+        ILockSqlGenerator lockSqlGenerator
+    )
     {
         _dependencies = dependencies;
         _typeMappingSource = typeMappingSource;
@@ -24,10 +25,11 @@ internal sealed class MySqlLockingQuerySqlGeneratorFactory : IQuerySqlGeneratorF
         _lockSqlGenerator = lockSqlGenerator;
     }
 
-    public QuerySqlGenerator Create()
-        => new MySqlLockingQuerySqlGenerator(
+    public QuerySqlGenerator Create() =>
+        new MySqlLockingQuerySqlGenerator(
             _dependencies,
             _typeMappingSource,
             _mySqlOptions,
-            _lockSqlGenerator);
+            _lockSqlGenerator
+        );
 }

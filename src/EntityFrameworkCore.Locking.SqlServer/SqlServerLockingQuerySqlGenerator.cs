@@ -1,12 +1,12 @@
+using System.Linq.Expressions;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.Internal;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
-using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EntityFrameworkCore.Locking.SqlServer;
 
@@ -23,7 +23,8 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
         QuerySqlGeneratorDependencies dependencies,
         IRelationalTypeMappingSource typeMappingSource,
         ISqlServerSingletonOptions sqlServerSingletonOptions,
-        ILockSqlGenerator lockSqlGenerator)
+        ILockSqlGenerator lockSqlGenerator
+    )
         : base(dependencies, typeMappingSource, sqlServerSingletonOptions)
     {
         _lockSqlGenerator = lockSqlGenerator;
@@ -37,9 +38,10 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
 
         if (hasLockTag && lockOptions is null)
             throw new LockingConfigurationException(
-                "Lock marker detected in query but LockContext is empty. " +
-                "This indicates an AsyncLocal propagation failure. " +
-                "Do not compose locking queries across async context boundaries.");
+                "Lock marker detected in query but LockContext is empty. "
+                    + "This indicates an AsyncLocal propagation failure. "
+                    + "Do not compose locking queries across async context boundaries."
+            );
 
         if (lockOptions is not null && hasLockTag)
             UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);
@@ -57,7 +59,8 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
 
         if (!_lockSqlGenerator.SupportsLockOptions(lockOptions))
             throw new LockingConfigurationException(
-                $"Lock mode {lockOptions.Mode} with behavior {lockOptions.Behavior} is not supported by SQL Server.");
+                $"Lock mode {lockOptions.Mode} with behavior {lockOptions.Behavior} is not supported by SQL Server."
+            );
 
         Sql.Append($" {SqlServerLockSqlGenerator.BuildTableHint(lockOptions)}");
         return result;

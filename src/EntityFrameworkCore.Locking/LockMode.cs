@@ -19,5 +19,5 @@ public enum LockMode
     /// PostgreSQL-only. Minimal shared lock that only blocks FOR UPDATE.
     /// Intended for FK lookups; does not block FOR NO KEY UPDATE or FOR SHARE.
     /// </summary>
-    ForKeyShare = 3
+    ForKeyShare = 3,
 }

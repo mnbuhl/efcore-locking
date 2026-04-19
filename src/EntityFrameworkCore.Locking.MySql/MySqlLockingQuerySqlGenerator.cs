@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.Internal;
@@ -6,7 +7,6 @@ using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.EntityFrameworkCore.Storage;
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure.Internal;
 using Pomelo.EntityFrameworkCore.MySql.Query.ExpressionVisitors.Internal;
-using System.Linq.Expressions;
 
 namespace EntityFrameworkCore.Locking.MySql;
 
@@ -18,7 +18,8 @@ internal sealed class MySqlLockingQuerySqlGenerator : MySqlQuerySqlGenerator
         QuerySqlGeneratorDependencies dependencies,
         IRelationalTypeMappingSource typeMappingSource,
         IMySqlOptions options,
-        ILockSqlGenerator lockSqlGenerator)
+        ILockSqlGenerator lockSqlGenerator
+    )
         : base(dependencies, typeMappingSource, options)
     {
         _lockSqlGenerator = lockSqlGenerator;
@@ -33,9 +34,10 @@ internal sealed class MySqlLockingQuerySqlGenerator : MySqlQuerySqlGenerator
 
         if (hasLockTag && lockOptions is null)
             throw new LockingConfigurationException(
-                "Lock marker detected in query but LockContext is empty. " +
-                "This indicates an AsyncLocal propagation failure. " +
-                "Do not compose locking queries across async context boundaries.");
+                "Lock marker detected in query but LockContext is empty. "
+                    + "This indicates an AsyncLocal propagation failure. "
+                    + "Do not compose locking queries across async context boundaries."
+            );
 
         if (lockOptions is null || !hasLockTag)
             return result;

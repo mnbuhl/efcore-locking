@@ -3,8 +3,11 @@ using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.PostgreSQL;
 using InventoryApi;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddOpenApi();
 
 var connectionString =
     builder.Configuration.GetConnectionString("Inventory")
@@ -13,6 +16,9 @@ var connectionString =
 builder.Services.AddDbContext<InventoryDbContext>(o => o.UseNpgsql(connectionString).UseLocking());
 
 var app = builder.Build();
+
+app.MapOpenApi();
+app.MapScalarApiReference();
 
 // Ensure schema and seed data on startup
 await using (var scope = app.Services.CreateAsyncScope())
@@ -188,6 +194,63 @@ app.MapPost(
                 remaining = product.Stock,
             }
         );
+    }
+);
+
+// POST /inventory/snapshot — TryAcquireDistributedLockAsync: non-blocking.
+// If another process is already taking a snapshot, returns 409 immediately rather than waiting.
+app.MapPost(
+    "/inventory/snapshot",
+    async (InventoryDbContext db) =>
+    {
+        await using var handle = await db.TryAcquireDistributedLockAsync("inventory:snapshot");
+        if (handle is null)
+            return Results.Conflict(new { error = "A snapshot is already in progress." });
+
+        var products = await db.Products.ToListAsync();
+
+        // simulate delay
+        await Task.Delay(1000);
+
+        return Results.Ok(
+            products.Select(p => new
+            {
+                p.Id,
+                p.Name,
+                p.Stock,
+                p.Price,
+                TakenAt = DateTime.UtcNow,
+            })
+        );
+    }
+);
+
+// POST /products/price-sync — AcquireDistributedLockAsync with timeout.
+// Waits up to 3 seconds for the lock; returns 409 if another sync is still running by then.
+// Use this when the operation is short-lived and callers can tolerate a brief wait.
+app.MapPost(
+    "/products/price-sync",
+    async (InventoryDbContext db) =>
+    {
+        try
+        {
+            await using var handle = await db.AcquireDistributedLockAsync(
+                "products:price-sync",
+                timeout: TimeSpan.FromSeconds(3)
+            );
+
+            // Lock held — simulate applying a price adjustment from an external feed
+            var products = await db.Products.ToListAsync();
+            foreach (var product in products)
+                product.Price = Math.Round(product.Price * 1.05m, 2);
+
+            await db.SaveChangesAsync();
+            return Results.Ok(new { synced = products.Count });
+        }
+        catch (LockTimeoutException)
+        {
+            return Results.Conflict(new { error = "Price sync is already running. Try again shortly." });
+        }
     }
 );
 

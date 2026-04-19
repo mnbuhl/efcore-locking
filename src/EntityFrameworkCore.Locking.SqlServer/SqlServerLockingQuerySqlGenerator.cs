@@ -35,10 +35,7 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
     {
         var lockOptions = LockContext.Current;
 
-        if (
-            lockOptions is null
-            || !selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions))
-        )
+        if (lockOptions is null || !selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions)))
         {
             _lockingActive = false;
             return base.VisitSelect(selectExpression);

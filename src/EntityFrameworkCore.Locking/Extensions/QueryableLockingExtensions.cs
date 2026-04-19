@@ -16,9 +16,16 @@ public static class QueryableLockingExtensions
     public static IQueryable<T> ForUpdate<T>(
         this IQueryable<T> source,
         LockBehavior behavior = LockBehavior.Wait,
-        TimeSpan? timeout = null) where T : class
+        TimeSpan? timeout = null
+    )
+        where T : class
     {
-        var options = new LockOptions { Mode = LockMode.ForUpdate, Behavior = behavior, Timeout = timeout };
+        var options = new LockOptions
+        {
+            Mode = LockMode.ForUpdate,
+            Behavior = behavior,
+            Timeout = timeout,
+        };
         LockContext.Current = options;
         return source.TagWith(LockTagConstants.BuildTag(options));
     }
@@ -34,9 +41,16 @@ public static class QueryableLockingExtensions
     public static IQueryable<T> ForShare<T>(
         this IQueryable<T> source,
         LockBehavior behavior = LockBehavior.Wait,
-        TimeSpan? timeout = null) where T : class
+        TimeSpan? timeout = null
+    )
+        where T : class
     {
-        var options = new LockOptions { Mode = LockMode.ForShare, Behavior = behavior, Timeout = timeout };
+        var options = new LockOptions
+        {
+            Mode = LockMode.ForShare,
+            Behavior = behavior,
+            Timeout = timeout,
+        };
         LockContext.Current = options;
         return source.TagWith(LockTagConstants.BuildTag(options));
     }

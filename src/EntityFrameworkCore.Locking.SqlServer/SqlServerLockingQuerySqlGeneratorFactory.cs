@@ -1,7 +1,7 @@
 using EntityFrameworkCore.Locking.Abstractions;
 using Microsoft.EntityFrameworkCore.Query;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EntityFrameworkCore.Locking.SqlServer;
 
@@ -16,7 +16,8 @@ internal sealed class SqlServerLockingQuerySqlGeneratorFactory : IQuerySqlGenera
         QuerySqlGeneratorDependencies dependencies,
         IRelationalTypeMappingSource typeMappingSource,
         ISqlServerSingletonOptions sqlServerOptions,
-        ILockSqlGenerator lockSqlGenerator)
+        ILockSqlGenerator lockSqlGenerator
+    )
     {
         _dependencies = dependencies;
         _typeMappingSource = typeMappingSource;
@@ -24,10 +25,11 @@ internal sealed class SqlServerLockingQuerySqlGeneratorFactory : IQuerySqlGenera
         _lockSqlGenerator = lockSqlGenerator;
     }
 
-    public QuerySqlGenerator Create()
-        => new SqlServerLockingQuerySqlGenerator(
+    public QuerySqlGenerator Create() =>
+        new SqlServerLockingQuerySqlGenerator(
             _dependencies,
             _typeMappingSource,
             _sqlServerOptions,
-            _lockSqlGenerator);
+            _lockSqlGenerator
+        );
 }

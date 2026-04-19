@@ -11,7 +11,9 @@ public static class SqlServerLockingServiceCollectionExtensions
     /// Adds row-level locking support for SQL Server. Call after UseSqlServer().
     /// </summary>
     public static DbContextOptionsBuilder<TContext> UseLocking<TContext>(
-        this DbContextOptionsBuilder<TContext> optionsBuilder) where TContext : DbContext
+        this DbContextOptionsBuilder<TContext> optionsBuilder
+    )
+        where TContext : DbContext
     {
         ((DbContextOptionsBuilder)optionsBuilder).UseLocking();
         return optionsBuilder;
@@ -25,8 +27,14 @@ public static class SqlServerLockingServiceCollectionExtensions
         var extension = new LockingOptionsExtension(new SqlServerLockingProvider());
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
 
-        optionsBuilder.ReplaceService<IQuerySqlGeneratorFactory, SqlServerLockingQuerySqlGeneratorFactory>();
-        optionsBuilder.AddInterceptors(new LockingValidationInterceptor(), new DistributedLockCleanupInterceptor());
+        optionsBuilder.ReplaceService<
+            IQuerySqlGeneratorFactory,
+            SqlServerLockingQuerySqlGeneratorFactory
+        >();
+        optionsBuilder.AddInterceptors(
+            new LockingValidationInterceptor(),
+            new DistributedLockCleanupInterceptor()
+        );
 
         return optionsBuilder;
     }

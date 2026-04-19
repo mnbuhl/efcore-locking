@@ -15,7 +15,11 @@ public class SqlGenerationTests
     [InlineData(LockMode.ForShare, LockBehavior.Wait, "FOR SHARE")]
     [InlineData(LockMode.ForShare, LockBehavior.NoWait, "FOR SHARE NOWAIT")]
     [InlineData(LockMode.ForShare, LockBehavior.SkipLocked, "FOR SHARE SKIP LOCKED")]
-    public void GenerateLockClause_ReturnsExpectedSql(LockMode mode, LockBehavior behavior, string expected)
+    public void GenerateLockClause_ReturnsExpectedSql(
+        LockMode mode,
+        LockBehavior behavior,
+        string expected
+    )
     {
         var opts = new LockOptions { Mode = mode, Behavior = behavior };
         _generator.GenerateLockClause(opts).Should().Be(expected);
@@ -31,15 +35,31 @@ public class SqlGenerationTests
     [Fact]
     public void GeneratePreStatementSql_WithTimeout_ReturnsSetSessionTimeout()
     {
-        var opts = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.Wait, Timeout = TimeSpan.FromSeconds(5) };
-        _generator.GeneratePreStatementSql(opts).Should().Be("SET SESSION innodb_lock_wait_timeout = 5");
+        var opts = new LockOptions
+        {
+            Mode = LockMode.ForUpdate,
+            Behavior = LockBehavior.Wait,
+            Timeout = TimeSpan.FromSeconds(5),
+        };
+        _generator
+            .GeneratePreStatementSql(opts)
+            .Should()
+            .Be("SET SESSION innodb_lock_wait_timeout = 5");
     }
 
     [Fact]
     public void GeneratePreStatementSql_SubSecondTimeout_CeilsToOne()
     {
-        var opts = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.Wait, Timeout = TimeSpan.FromMilliseconds(200) };
-        _generator.GeneratePreStatementSql(opts).Should().Be("SET SESSION innodb_lock_wait_timeout = 1");
+        var opts = new LockOptions
+        {
+            Mode = LockMode.ForUpdate,
+            Behavior = LockBehavior.Wait,
+            Timeout = TimeSpan.FromMilliseconds(200),
+        };
+        _generator
+            .GeneratePreStatementSql(opts)
+            .Should()
+            .Be("SET SESSION innodb_lock_wait_timeout = 1");
     }
 
     [Theory]
@@ -49,15 +69,34 @@ public class SqlGenerationTests
     [InlineData(10000, 10)]
     public void GeneratePreStatementSql_Timeout_CeilsToWholeSeconds(int ms, int expectedSeconds)
     {
-        var opts = new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.Wait, Timeout = TimeSpan.FromMilliseconds(ms) };
-        _generator.GeneratePreStatementSql(opts).Should().Be($"SET SESSION innodb_lock_wait_timeout = {expectedSeconds}");
+        var opts = new LockOptions
+        {
+            Mode = LockMode.ForUpdate,
+            Behavior = LockBehavior.Wait,
+            Timeout = TimeSpan.FromMilliseconds(ms),
+        };
+        _generator
+            .GeneratePreStatementSql(opts)
+            .Should()
+            .Be($"SET SESSION innodb_lock_wait_timeout = {expectedSeconds}");
     }
 
     [Fact]
     public void SupportsLockOptions_AlwaysTrue()
     {
-        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate }).Should().BeTrue();
-        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare }).Should().BeTrue();
-        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked }).Should().BeTrue();
+        _generator
+            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate })
+            .Should()
+            .BeTrue();
+        _generator
+            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare })
+            .Should()
+            .BeTrue();
+        _generator
+            .SupportsLockOptions(
+                new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.SkipLocked }
+            )
+            .Should()
+            .BeTrue();
     }
 }

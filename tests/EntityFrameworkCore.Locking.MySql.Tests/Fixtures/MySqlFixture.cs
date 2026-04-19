@@ -5,9 +5,7 @@ namespace EntityFrameworkCore.Locking.MySql.Tests.Fixtures;
 
 public sealed class MySqlFixture : IAsyncLifetime
 {
-    private readonly MySqlContainer _container = new MySqlBuilder()
-        .WithImage("mysql:8.0")
-        .Build();
+    private readonly MySqlContainer _container = new MySqlBuilder().WithImage("mysql:8.0").Build();
 
     public string ConnectionString => _container.GetConnectionString();
 

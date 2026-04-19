@@ -11,7 +11,9 @@ public static class MySqlLockingServiceCollectionExtensions
     /// Adds row-level locking support for MySQL (Pomelo). Call after UseMySql().
     /// </summary>
     public static DbContextOptionsBuilder<TContext> UseLocking<TContext>(
-        this DbContextOptionsBuilder<TContext> optionsBuilder) where TContext : DbContext
+        this DbContextOptionsBuilder<TContext> optionsBuilder
+    )
+        where TContext : DbContext
     {
         ((DbContextOptionsBuilder)optionsBuilder).UseLocking();
         return optionsBuilder;
@@ -25,8 +27,14 @@ public static class MySqlLockingServiceCollectionExtensions
         var extension = new LockingOptionsExtension(new MySqlLockingProvider());
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
 
-        optionsBuilder.ReplaceService<IQuerySqlGeneratorFactory, MySqlLockingQuerySqlGeneratorFactory>();
-        optionsBuilder.AddInterceptors(new LockingValidationInterceptor(), new DistributedLockCleanupInterceptor());
+        optionsBuilder.ReplaceService<
+            IQuerySqlGeneratorFactory,
+            MySqlLockingQuerySqlGeneratorFactory
+        >();
+        optionsBuilder.AddInterceptors(
+            new LockingValidationInterceptor(),
+            new DistributedLockCleanupInterceptor()
+        );
 
         return optionsBuilder;
     }

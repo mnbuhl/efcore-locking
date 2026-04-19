@@ -9,8 +9,24 @@ namespace EntityFrameworkCore.Locking.Abstractions;
 /// </summary>
 public interface IAdvisoryLockProvider
 {
-    Task<IDistributedLockHandle> AcquireAsync(DbContext context, DbConnection connection, string key, TimeSpan? timeout, CancellationToken ct);
-    Task<IDistributedLockHandle?> TryAcquireAsync(DbContext context, DbConnection connection, string key, CancellationToken ct);
-    IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout);
+    Task<IDistributedLockHandle> AcquireAsync(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        CancellationToken ct
+    );
+    Task<IDistributedLockHandle?> TryAcquireAsync(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        CancellationToken ct
+    );
+    IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout
+    );
     IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key);
 }

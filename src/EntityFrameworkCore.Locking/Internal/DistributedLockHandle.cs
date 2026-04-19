@@ -18,7 +18,8 @@ internal sealed class DistributedLockHandle : IDistributedLockHandle
         DbConnection connection,
         bool openedByConnection,
         Func<CancellationToken, Task> releaseAsync,
-        Action releaseSync)
+        Action releaseSync
+    )
     {
         Key = key;
         Connection = connection;

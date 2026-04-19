@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <PackageId>EntityFrameworkCore.Locking.PostgreSQL</PackageId>
     <Description>PostgreSQL (Npgsql) provider for EntityFrameworkCore.Locking.</Description>
@@ -16,5 +15,4 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[8.0.0, )" />
     <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
   </ItemGroup>
-
 </Project>

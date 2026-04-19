@@ -12,12 +12,14 @@ internal static class UnsafeShapeDetector
         {
             if (table is SetOperationBase)
                 throw new LockingConfigurationException(
-                    "ForUpdate/ForShare is not compatible with set operations (Union/Except/Intersect).");
+                    "ForUpdate/ForShare is not compatible with set operations (Union/Except/Intersect)."
+                );
         }
 
         // Split query: EF Core marks split queries with a specific tag
         if (selectExpression.Tags.Any(t => t.Contains("SplitQuery") || t.Contains("split_query")))
             throw new LockingConfigurationException(
-                "ForUpdate/ForShare is not compatible with split queries. Remove AsSplitQuery().");
+                "ForUpdate/ForShare is not compatible with split queries. Remove AsSplitQuery()."
+            );
     }
 }

@@ -3,7 +3,8 @@ using EntityFrameworkCore.Locking.PostgreSQL;
 using Microsoft.EntityFrameworkCore;
 using QueueProcessor;
 
-var connectionString = args.FirstOrDefault()
+var connectionString =
+    args.FirstOrDefault()
     ?? Environment.GetEnvironmentVariable("CONNECTION_STRING")
     ?? "Host=localhost;Database=queue_sample;Username=postgres;Password=postgres";
 
@@ -19,11 +20,15 @@ await using (var db = new JobDbContext(optionsBuilder.Options))
     // Seed 20 jobs if the table is empty
     if (!await db.Jobs.AnyAsync())
     {
-        db.Jobs.AddRange(Enumerable.Range(1, 20).Select(i => new Job
-        {
-            Payload = $"task-{i:D3}",
-            CreatedAt = DateTime.UtcNow.AddSeconds(-i)
-        }));
+        db.Jobs.AddRange(
+            Enumerable
+                .Range(1, 20)
+                .Select(i => new Job
+                {
+                    Payload = $"task-{i:D3}",
+                    CreatedAt = DateTime.UtcNow.AddSeconds(-i),
+                })
+        );
         await db.SaveChangesAsync();
         Console.WriteLine("Seeded 20 jobs.");
     }
@@ -32,7 +37,9 @@ await using (var db = new JobDbContext(optionsBuilder.Options))
 // --- Run 4 concurrent workers ---
 Console.WriteLine("Starting 4 concurrent workers...\n");
 
-var workers = Enumerable.Range(1, 4).Select(i => RunWorkerAsync($"worker-{i}", optionsBuilder.Options));
+var workers = Enumerable
+    .Range(1, 4)
+    .Select(i => RunWorkerAsync($"worker-{i}", optionsBuilder.Options));
 await Task.WhenAll(workers);
 
 Console.WriteLine("\nAll workers finished.");
@@ -48,8 +55,8 @@ static async Task RunWorkerAsync(string workerId, DbContextOptions<JobDbContext>
         // ForUpdate(SkipLocked): grab the oldest pending job not already claimed by another worker.
         // Without SkipLocked, concurrent workers would block on the same row; this lets each worker
         // move on to the next available row immediately.
-        var job = await db.Jobs
-            .Where(j => j.Status == JobStatus.Pending)
+        var job = await db
+            .Jobs.Where(j => j.Status == JobStatus.Pending)
             .OrderBy(j => j.CreatedAt)
             .ForUpdate(LockBehavior.SkipLocked)
             .FirstOrDefaultAsync();
@@ -73,10 +80,7 @@ static async Task RunWorkerAsync(string workerId, DbContextOptions<JobDbContext>
         await using var db2 = new JobDbContext(options);
         await using var tx2 = await db2.Database.BeginTransactionAsync();
 
-        var processing = await db2.Jobs
-            .Where(j => j.Id == job.Id)
-            .ForUpdate()
-            .FirstAsync();
+        var processing = await db2.Jobs.Where(j => j.Id == job.Id).ForUpdate().FirstAsync();
 
         processing.Status = JobStatus.Done;
         processing.ProcessedAt = DateTime.UtcNow;

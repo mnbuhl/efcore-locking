@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <NoWarn>$(NoWarn);EF1001</NoWarn>
   </PropertyGroup>
@@ -13,5 +12,4 @@
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="AwesomeAssertions" />
   </ItemGroup>
-
 </Project>

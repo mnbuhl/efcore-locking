@@ -25,10 +25,12 @@ public partial class IntegrationTests(SqlServerFixture fixture) : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     private TestDbContext CreateContext() =>
-        new(new DbContextOptionsBuilder<TestDbContext>()
-            .UseSqlServer(fixture.ConnectionString)
-            .UseLocking()
-            .Options);
+        new(
+            new DbContextOptionsBuilder<TestDbContext>()
+                .UseSqlServer(fixture.ConnectionString)
+                .UseLocking()
+                .Options
+        );
 
     private (TestDbContext ctx, SqlCapture capture) CreateContextWithCapture()
     {
@@ -38,17 +40,28 @@ public partial class IntegrationTests(SqlServerFixture fixture) : IAsyncLifetime
                 .UseSqlServer(fixture.ConnectionString)
                 .UseLocking()
                 .AddInterceptors(capture)
-                .Options);
+                .Options
+        );
         return (ctx, capture);
     }
 
     private async Task<(int categoryId, int productId)> SeedAsync(
-        TestDbContext ctx, string categoryName = "Electronics", string productName = "Widget", decimal price = 9.99m)
+        TestDbContext ctx,
+        string categoryName = "Electronics",
+        string productName = "Widget",
+        decimal price = 9.99m
+    )
     {
         var cat = new Category { Name = categoryName };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
-        var p = new Product { Name = productName, Price = price, Stock = 10, CategoryId = cat.Id };
+        var p = new Product
+        {
+            Name = productName,
+            Price = price,
+            Stock = 10,
+            CategoryId = cat.Id,
+        };
         ctx.Products.Add(p);
         await ctx.SaveChangesAsync();
         return (cat.Id, p.Id);
@@ -75,7 +88,8 @@ public partial class IntegrationTests(SqlServerFixture fixture) : IAsyncLifetime
     {
         await using var ctx = CreateContext();
 
-        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
+        Func<Task> act = async () =>
+            await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -85,7 +99,9 @@ public partial class IntegrationTests(SqlServerFixture fixture) : IAsyncLifetime
         await using var ctx = CreateContext();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        (await ctx.Products.Where(p => p.Id == int.MaxValue).ForUpdate().FirstOrDefaultAsync()).Should().BeNull();
+        (await ctx.Products.Where(p => p.Id == int.MaxValue).ForUpdate().FirstOrDefaultAsync())
+            .Should()
+            .BeNull();
         await tx.RollbackAsync();
     }
 
@@ -96,7 +112,13 @@ public partial class IntegrationTests(SqlServerFixture fixture) : IAsyncLifetime
         var cat = new Category { Name = "NoLock" };
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
-        var p = new Product { Name = "NoLock", Price = 1m, Stock = 1, CategoryId = cat.Id };
+        var p = new Product
+        {
+            Name = "NoLock",
+            Price = 1m,
+            Stock = 1,
+            CategoryId = cat.Id,
+        };
         ctx.Products.Add(p);
         await ctx.SaveChangesAsync();
 
@@ -112,7 +134,13 @@ public partial class IntegrationTests(SqlServerFixture fixture) : IAsyncLifetime
         await using var tx = await ctx.Database.BeginTransactionAsync();
         await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
 
-        var p = new Product { Name = "AfterLock", Price = 1m, Stock = 1, CategoryId = catId };
+        var p = new Product
+        {
+            Name = "AfterLock",
+            Price = 1m,
+            Stock = 1,
+            CategoryId = catId,
+        };
         ctx.Products.Add(p);
         await ctx.SaveChangesAsync();
         p.Id.Should().BeGreaterThan(0);
@@ -125,8 +153,24 @@ public partial class IntegrationTests(SqlServerFixture fixture) : IAsyncLifetime
     {
         await using var ctx = CreateContext();
         var (catId, _) = await SeedAsync(ctx);
-        ctx.Products.Add(new Product { Name = "B", Price = 2m, Stock = 1, CategoryId = catId });
-        ctx.Products.Add(new Product { Name = "C", Price = 3m, Stock = 1, CategoryId = catId });
+        ctx.Products.Add(
+            new Product
+            {
+                Name = "B",
+                Price = 2m,
+                Stock = 1,
+                CategoryId = catId,
+            }
+        );
+        ctx.Products.Add(
+            new Product
+            {
+                Name = "C",
+                Price = 3m,
+                Stock = 1,
+                CategoryId = catId,
+            }
+        );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();

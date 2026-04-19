@@ -17,8 +17,8 @@ public partial class IntegrationTests
         var (_, id) = await SeedAsync(ctx, categoryName: "Nav");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var product = await ctx.Products
-            .Include(p => p.Category)
+        var product = await ctx
+            .Products.Include(p => p.Category)
             .Where(p => p.Id == id)
             .ForUpdate()
             .FirstOrDefaultAsync();
@@ -34,12 +34,19 @@ public partial class IntegrationTests
         await using var ctx = CreateContext();
         var (_, id) = await SeedAsync(ctx);
         for (var i = 1; i <= 3; i++)
-            ctx.OrderLines.Add(new OrderLine { ProductId = id, Quantity = i, UnitPrice = i * 1.5m });
+            ctx.OrderLines.Add(
+                new OrderLine
+                {
+                    ProductId = id,
+                    Quantity = i,
+                    UnitPrice = i * 1.5m,
+                }
+            );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var product = await ctx.Products
-            .Include(p => p.OrderLines)
+        var product = await ctx
+            .Products.Include(p => p.OrderLines)
             .Where(p => p.Id == id)
             .ForUpdate()
             .FirstOrDefaultAsync();
@@ -54,12 +61,19 @@ public partial class IntegrationTests
     {
         await using var ctx = CreateContext();
         var (_, id) = await SeedAsync(ctx, categoryName: "Multi");
-        ctx.OrderLines.Add(new OrderLine { ProductId = id, Quantity = 1, UnitPrice = 5m });
+        ctx.OrderLines.Add(
+            new OrderLine
+            {
+                ProductId = id,
+                Quantity = 1,
+                UnitPrice = 5m,
+            }
+        );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var product = await ctx.Products
-            .Include(p => p.Category)
+        var product = await ctx
+            .Products.Include(p => p.Category)
             .Include(p => p.OrderLines)
             .Where(p => p.Id == id)
             .ForUpdate()
@@ -76,13 +90,21 @@ public partial class IntegrationTests
     {
         await using var ctx = CreateContext();
         var (catId, _) = await SeedAsync(ctx, categoryName: "ThenInclude");
-        ctx.Products.Add(new Product { Name = "Second", Price = 1m, Stock = 1, CategoryId = catId });
+        ctx.Products.Add(
+            new Product
+            {
+                Name = "Second",
+                Price = 1m,
+                Stock = 1,
+                CategoryId = catId,
+            }
+        );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var category = await ctx.Categories
-            .Include(c => c.Products)
-            .ThenInclude(p => p.OrderLines)
+        var category = await ctx
+            .Categories.Include(c => c.Products)
+                .ThenInclude(p => p.OrderLines)
             .Where(c => c.Name == "ThenInclude")
             .ForUpdate()
             .FirstOrDefaultAsync();
@@ -102,8 +124,8 @@ public partial class IntegrationTests
         await SeedAsync(ctx, categoryName: "Other", productName: "Widget");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var products = await ctx.Products
-            .Where(p => p.Category.Name == "Gadgets")
+        var products = await ctx
+            .Products.Where(p => p.Category.Name == "Gadgets")
             .ForUpdate()
             .ToListAsync();
 
@@ -122,12 +144,20 @@ public partial class IntegrationTests
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
         for (var i = 1; i <= 5; i++)
-            ctx.Products.Add(new Product { Name = $"P{i}", Price = i, Stock = i, CategoryId = cat.Id });
+            ctx.Products.Add(
+                new Product
+                {
+                    Name = $"P{i}",
+                    Price = i,
+                    Stock = i,
+                    CategoryId = cat.Id,
+                }
+            );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var page = await ctx.Products
-            .Where(p => p.Category.Name == "Page")
+        var page = await ctx
+            .Products.Where(p => p.Category.Name == "Page")
             .OrderBy(p => p.Price)
             .Take(2)
             .ForUpdate()
@@ -146,14 +176,23 @@ public partial class IntegrationTests
         ctx.Categories.Add(cat);
         await ctx.SaveChangesAsync();
         for (var i = 1; i <= 5; i++)
-            ctx.Products.Add(new Product { Name = $"Q{i}", Price = i, Stock = i, CategoryId = cat.Id });
+            ctx.Products.Add(
+                new Product
+                {
+                    Name = $"Q{i}",
+                    Price = i,
+                    Stock = i,
+                    CategoryId = cat.Id,
+                }
+            );
         await ctx.SaveChangesAsync();
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var page = await ctx.Products
-            .Where(p => p.Category.Name == "Skip")
+        var page = await ctx
+            .Products.Where(p => p.Category.Name == "Skip")
             .OrderBy(p => p.Price)
-            .Skip(2).Take(2)
+            .Skip(2)
+            .Take(2)
             .ForUpdate()
             .ToListAsync();
 
@@ -172,8 +211,8 @@ public partial class IntegrationTests
         var (_, id) = await SeedAsync(ctx);
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var product = await ctx.Products
-            .AsNoTracking()
+        var product = await ctx
+            .Products.AsNoTracking()
             .Where(p => p.Id == id)
             .ForUpdate()
             .FirstOrDefaultAsync();
@@ -191,11 +230,12 @@ public partial class IntegrationTests
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        Func<Task> act = async () => await ctx.Products
-            .Where(p => p.Id == 1)
-            .Union(ctx.Products.Where(p => p.Id == 2))
-            .ForUpdate()
-            .ToListAsync();
+        Func<Task> act = async () =>
+            await ctx
+                .Products.Where(p => p.Id == 1)
+                .Union(ctx.Products.Where(p => p.Id == 2))
+                .ForUpdate()
+                .ToListAsync();
 
         await act.Should().ThrowAsync<LockingConfigurationException>();
         await tx.RollbackAsync();
@@ -207,11 +247,12 @@ public partial class IntegrationTests
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        Func<Task> act = async () => await ctx.Products
-            .Where(p => p.Id == 1)
-            .Except(ctx.Products.Where(p => p.Id == 2))
-            .ForUpdate()
-            .ToListAsync();
+        Func<Task> act = async () =>
+            await ctx
+                .Products.Where(p => p.Id == 1)
+                .Except(ctx.Products.Where(p => p.Id == 2))
+                .ForUpdate()
+                .ToListAsync();
 
         await act.Should().ThrowAsync<LockingConfigurationException>();
         await tx.RollbackAsync();
@@ -223,11 +264,12 @@ public partial class IntegrationTests
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        Func<Task> act = async () => await ctx.Products
-            .Where(p => p.Id == 1)
-            .Intersect(ctx.Products.Where(p => p.Id == 2))
-            .ForUpdate()
-            .ToListAsync();
+        Func<Task> act = async () =>
+            await ctx
+                .Products.Where(p => p.Id == 1)
+                .Intersect(ctx.Products.Where(p => p.Id == 2))
+                .ForUpdate()
+                .ToListAsync();
 
         await act.Should().ThrowAsync<LockingConfigurationException>();
         await tx.RollbackAsync();

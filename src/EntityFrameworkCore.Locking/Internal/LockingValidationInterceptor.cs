@@ -1,10 +1,10 @@
+using System.Data.Common;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
-using System.Data.Common;
 
 namespace EntityFrameworkCore.Locking.Internal;
 
@@ -19,7 +19,8 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command,
         CommandEventData eventData,
-        InterceptionResult<DbDataReader> result)
+        InterceptionResult<DbDataReader> result
+    )
     {
         ValidateAndPrepare(command, eventData);
         return result;
@@ -29,7 +30,8 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         DbCommand command,
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         ValidateAndPrepare(command, eventData);
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
@@ -38,12 +40,16 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
     public override DbDataReader ReaderExecuted(
         DbCommand command,
         CommandExecutedEventData eventData,
-        DbDataReader result)
+        DbDataReader result
+    )
     {
         // Use the SQL tag as the reliable signal: AsyncLocal changes in child continuations
         // do not propagate back to the caller's execution context, so LockContext.Current
         // may still be set from a prior locking query when SaveChanges runs its own reader.
-        var wasLocking = command.CommandText.Contains(LockTagConstants.Prefix, StringComparison.Ordinal);
+        var wasLocking = command.CommandText.Contains(
+            LockTagConstants.Prefix,
+            StringComparison.Ordinal
+        );
         LockContext.Current = null;
         return wasLocking ? WrapReader(result, eventData.Context) : result;
     }
@@ -52,9 +58,13 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         DbCommand command,
         CommandExecutedEventData eventData,
         DbDataReader result,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
-        var wasLocking = command.CommandText.Contains(LockTagConstants.Prefix, StringComparison.Ordinal);
+        var wasLocking = command.CommandText.Contains(
+            LockTagConstants.Prefix,
+            StringComparison.Ordinal
+        );
         LockContext.Current = null;
         return wasLocking
             ? new ValueTask<DbDataReader>(WrapReader(result, eventData.Context))
@@ -70,7 +80,8 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
     public override Task CommandFailedAsync(
         DbCommand command,
         CommandErrorEventData eventData,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         LockContext.Current = null;
         TranslateAndRethrow(eventData.Exception, eventData.Context);
@@ -85,10 +96,13 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
 
         if (eventData.Context?.Database.CurrentTransaction is null)
             throw new InvalidOperationException(
-                "ForUpdate requires an active transaction. " +
-                "Call BeginTransaction() before executing a locking query.");
+                "ForUpdate requires an active transaction. "
+                    + "Call BeginTransaction() before executing a locking query."
+            );
 
-        var provider = ((IInfrastructure<IServiceProvider>)eventData.Context).Instance.GetService<ILockingProvider>();
+        var provider = (
+            (IInfrastructure<IServiceProvider>)eventData.Context
+        ).Instance.GetService<ILockingProvider>();
         if (provider is null)
             return;
 
@@ -101,7 +115,9 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
     {
         if (context is null)
             return reader;
-        var translator = ((IInfrastructure<IServiceProvider>)context).Instance.GetService<IExceptionTranslator>();
+        var translator = (
+            (IInfrastructure<IServiceProvider>)context
+        ).Instance.GetService<IExceptionTranslator>();
         return translator is not null ? new TranslatingDbDataReader(reader, translator) : reader;
     }
 
@@ -110,7 +126,9 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         if (exception is null || context is null)
             return;
 
-        var translator = ((IInfrastructure<IServiceProvider>)context).Instance.GetService<IExceptionTranslator>();
+        var translator = (
+            (IInfrastructure<IServiceProvider>)context
+        ).Instance.GetService<IExceptionTranslator>();
         if (translator is null)
             return;
 

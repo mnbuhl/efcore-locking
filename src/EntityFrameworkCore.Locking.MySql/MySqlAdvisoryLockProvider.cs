@@ -28,10 +28,17 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
     }
 
     public async Task<IDistributedLockHandle> AcquireAsync(
-        DbContext context, DbConnection connection, string key, TimeSpan? timeout, CancellationToken ct)
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        CancellationToken ct
+    )
     {
         var encodedKey = EncodeKey(key);
-        var timeoutSeconds = timeout.HasValue ? (long)Math.Ceiling(timeout.Value.TotalSeconds) : -1L;
+        var timeoutSeconds = timeout.HasValue
+            ? (long)Math.Ceiling(timeout.Value.TotalSeconds)
+            : -1L;
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT GET_LOCK(@key, @timeout)";
@@ -44,18 +51,29 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         {
             result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
 
         return result switch
         {
             1L or 1 => BuildHandle(context, connection, key, encodedKey),
-            0L or 0 => throw new LockTimeoutException($"Timed out waiting for distributed lock '{key}'."),
-            _ => throw new LockAcquisitionFailedException($"GET_LOCK returned NULL for key '{key}' — possible error on the server.")
+            0L or 0 => throw new LockTimeoutException(
+                $"Timed out waiting for distributed lock '{key}'."
+            ),
+            _ => throw new LockAcquisitionFailedException(
+                $"GET_LOCK returned NULL for key '{key}' — possible error on the server."
+            ),
         };
     }
 
     public async Task<IDistributedLockHandle?> TryAcquireAsync(
-        DbContext context, DbConnection connection, string key, CancellationToken ct)
+        DbContext context,
+        DbConnection connection,
+        string key,
+        CancellationToken ct
+    )
     {
         var encodedKey = EncodeKey(key);
         await using var cmd = connection.CreateCommand();
@@ -64,17 +82,23 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
 
         var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
         if (result is DBNull or null)
-            throw new LockAcquisitionFailedException($"GET_LOCK returned NULL for key '{key}' — possible error on the server.");
-        return result is 1L or 1
-            ? BuildHandle(context, connection, key, encodedKey)
-            : null;
+            throw new LockAcquisitionFailedException(
+                $"GET_LOCK returned NULL for key '{key}' — possible error on the server."
+            );
+        return result is 1L or 1 ? BuildHandle(context, connection, key, encodedKey) : null;
     }
 
     public IDistributedLockHandle Acquire(
-        DbContext context, DbConnection connection, string key, TimeSpan? timeout)
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout
+    )
     {
         var encodedKey = EncodeKey(key);
-        var timeoutSeconds = timeout.HasValue ? (long)Math.Ceiling(timeout.Value.TotalSeconds) : -1L;
+        var timeoutSeconds = timeout.HasValue
+            ? (long)Math.Ceiling(timeout.Value.TotalSeconds)
+            : -1L;
 
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT GET_LOCK(@key, @timeout)";
@@ -85,13 +109,20 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         return result switch
         {
             1L or 1 => BuildHandle(context, connection, key, encodedKey),
-            0L or 0 => throw new LockTimeoutException($"Timed out waiting for distributed lock '{key}'."),
-            _ => throw new LockAcquisitionFailedException($"GET_LOCK returned NULL for key '{key}' — possible error on the server.")
+            0L or 0 => throw new LockTimeoutException(
+                $"Timed out waiting for distributed lock '{key}'."
+            ),
+            _ => throw new LockAcquisitionFailedException(
+                $"GET_LOCK returned NULL for key '{key}' — possible error on the server."
+            ),
         };
     }
 
     public IDistributedLockHandle? TryAcquire(
-        DbContext context, DbConnection connection, string key)
+        DbContext context,
+        DbConnection connection,
+        string key
+    )
     {
         var encodedKey = EncodeKey(key);
         using var cmd = connection.CreateCommand();
@@ -100,14 +131,18 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
 
         var result = cmd.ExecuteScalar();
         if (result is DBNull or null)
-            throw new LockAcquisitionFailedException($"GET_LOCK returned NULL for key '{key}' — possible error on the server.");
-        return result is 1L or 1
-            ? BuildHandle(context, connection, key, encodedKey)
-            : null;
+            throw new LockAcquisitionFailedException(
+                $"GET_LOCK returned NULL for key '{key}' — possible error on the server."
+            );
+        return result is 1L or 1 ? BuildHandle(context, connection, key, encodedKey) : null;
     }
 
     private static IDistributedLockHandle BuildHandle(
-        DbContext context, DbConnection connection, string key, string encodedKey)
+        DbContext context,
+        DbConnection connection,
+        string key,
+        string encodedKey
+    )
     {
         async Task ReleaseAsync(CancellationToken ct)
         {
@@ -127,7 +162,13 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
             cmd.ExecuteScalar();
         }
 
-        return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
+        return new DistributedLockHandle(
+            key,
+            connection,
+            openedByConnection: false,
+            ReleaseAsync,
+            ReleaseSync
+        );
     }
 
     private static void AddParam(DbCommand cmd, string name, object value)

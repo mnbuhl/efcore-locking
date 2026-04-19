@@ -14,7 +14,7 @@ public sealed class PostgresLockSqlGenerator : ILockSqlGenerator
             LockMode.ForShare => "FOR SHARE",
             LockMode.ForNoKeyUpdate => "FOR NO KEY UPDATE",
             LockMode.ForKeyShare => "FOR KEY SHARE",
-            _ => throw new LockingConfigurationException($"Unsupported lock mode: {options.Mode}")
+            _ => throw new LockingConfigurationException($"Unsupported lock mode: {options.Mode}"),
         };
 
         var modifier = options.Behavior switch
@@ -22,7 +22,9 @@ public sealed class PostgresLockSqlGenerator : ILockSqlGenerator
             LockBehavior.Wait => string.Empty,
             LockBehavior.SkipLocked => " SKIP LOCKED",
             LockBehavior.NoWait => " NOWAIT",
-            _ => throw new LockingConfigurationException($"Unsupported lock behavior: {options.Behavior}")
+            _ => throw new LockingConfigurationException(
+                $"Unsupported lock behavior: {options.Behavior}"
+            ),
         };
 
         return $"{mode}{modifier}";

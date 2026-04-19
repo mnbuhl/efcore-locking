@@ -10,4 +10,9 @@ public class Job
     public string? WorkerId { get; set; }
 }
 
-public enum JobStatus { Pending, Processing, Done }
+public enum JobStatus
+{
+    Pending,
+    Processing,
+    Done,
+}

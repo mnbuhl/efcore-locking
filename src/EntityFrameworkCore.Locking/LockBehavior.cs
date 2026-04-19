@@ -10,5 +10,5 @@ public enum LockBehavior
     SkipLocked = 1,
 
     /// <summary>Fail immediately if any targeted row is locked.</summary>
-    NoWait = 2
+    NoWait = 2,
 }

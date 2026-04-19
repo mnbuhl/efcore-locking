@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.Internal;
@@ -5,7 +6,6 @@ using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Query.Internal;
-using System.Linq.Expressions;
 
 namespace EntityFrameworkCore.Locking.PostgreSQL;
 
@@ -22,7 +22,8 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
         IRelationalTypeMappingSource typeMappingSource,
         bool reverseNullOrderingEnabled,
         Version postgresVersion,
-        ILockSqlGenerator lockSqlGenerator)
+        ILockSqlGenerator lockSqlGenerator
+    )
         : base(dependencies, typeMappingSource, reverseNullOrderingEnabled, postgresVersion)
     {
         _lockSqlGenerator = lockSqlGenerator;
@@ -38,9 +39,10 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
         // Tag present but AsyncLocal null: propagation failure — would silently cache unlocked SQL
         if (hasLockTag && lockOptions is null)
             throw new LockingConfigurationException(
-                "Lock marker detected in query but LockContext is empty. " +
-                "This indicates an AsyncLocal propagation failure. " +
-                "Do not compose locking queries across async context boundaries.");
+                "Lock marker detected in query but LockContext is empty. "
+                    + "This indicates an AsyncLocal propagation failure. "
+                    + "Do not compose locking queries across async context boundaries."
+            );
 
         // AsyncLocal set but tag absent: stale AsyncLocal from a prior query — ignore
         if (lockOptions is null || !hasLockTag)
@@ -72,7 +74,9 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
             LockMode.ForShare => "FOR SHARE",
             LockMode.ForNoKeyUpdate => "FOR NO KEY UPDATE",
             LockMode.ForKeyShare => "FOR KEY SHARE",
-            _ => throw new LockingConfigurationException($"Unsupported lock mode: {lockOptions.Mode}")
+            _ => throw new LockingConfigurationException(
+                $"Unsupported lock mode: {lockOptions.Mode}"
+            ),
         };
 
         var of = tableAlias is not null ? $" OF \"{tableAlias}\"" : string.Empty;
@@ -82,7 +86,9 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
             LockBehavior.Wait => string.Empty,
             LockBehavior.SkipLocked => " SKIP LOCKED",
             LockBehavior.NoWait => " NOWAIT",
-            _ => throw new LockingConfigurationException($"Unsupported lock behavior: {lockOptions.Behavior}")
+            _ => throw new LockingConfigurationException(
+                $"Unsupported lock behavior: {lockOptions.Behavior}"
+            ),
         };
 
         return $"{mode}{of}{modifier}";

@@ -37,8 +37,7 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
         var previousLockingActive = _lockingActive;
 
         var isLockingSelect =
-            lockOptions is not null
-            && selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions));
+            lockOptions is not null && selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions));
 
         if (!isLockingSelect)
         {

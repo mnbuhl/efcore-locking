@@ -39,8 +39,7 @@ internal sealed class MySqlLockingQuerySqlGenerator : MySqlQuerySqlGenerator
         var clause = _lockSqlGenerator.GenerateLockClause(lockOptions!);
         if (clause is not null)
         {
-            Sql.AppendLine();
-            Sql.Append(clause);
+            Sql.AppendLine().AppendLine(clause);
         }
 
         return result;

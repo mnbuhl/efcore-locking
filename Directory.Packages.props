@@ -17,11 +17,10 @@
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>
 
-  <!-- EF provider package versions. Each project uses VersionOverride per TFM so the compiled
-       assembly matches the EF major it ships against (see Directory.Build.props for TFMs).
-       The default versions below are net8.0 baselines — used directly on net8.0 targets and
-       overridden on net9.0/net10.0 via VersionOverride in individual csproj files.
-       Pomelo.EntityFrameworkCore.MySql has no net10.0 build yet; MySql projects cap at net9.0. -->
+  <!-- EF provider baseline versions for CPM. Library projects set their own floor-pinned
+       PackageReference (Version="[8.0.0,)") directly and disable CPM; these entries remain
+       as CPM baselines for test/sample/benchmark projects. Individual test projects may
+       VersionOverride to a newer EF major where newer test APIs are required. -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.14" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />

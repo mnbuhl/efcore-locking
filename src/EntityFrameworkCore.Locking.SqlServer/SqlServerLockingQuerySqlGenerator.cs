@@ -70,7 +70,7 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
                 $"Lock mode {lockOptions.Mode} with behavior {lockOptions.Behavior} is not supported by SQL Server."
             );
 
-        Sql.Append($" {SqlServerLockSqlGenerator.BuildTableHint(lockOptions)}");
+        Sql.AppendLine($" {SqlServerLockSqlGenerator.BuildTableHint(lockOptions)}");
         return result;
     }
 }

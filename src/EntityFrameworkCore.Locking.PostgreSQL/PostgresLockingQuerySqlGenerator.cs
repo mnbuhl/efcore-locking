@@ -49,8 +49,7 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
         var clause = BuildLockClause(lockOptions!, rootAlias);
         if (clause is not null)
         {
-            Sql.AppendLine();
-            Sql.Append(clause);
+            Sql.AppendLine().AppendLine(clause);
         }
 
         return result;

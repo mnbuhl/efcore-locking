@@ -203,7 +203,7 @@ app.MapPost(
     "/inventory/snapshot",
     async (InventoryDbContext db) =>
     {
-        await using var handle = await db.TryAcquireDistributedLockAsync("inventory:snapshot");
+        await using var handle = await db.Database.TryAcquireDistributedLockAsync("inventory:snapshot");
         if (handle is null)
             return Results.Conflict(new { error = "A snapshot is already in progress." });
 
@@ -234,7 +234,7 @@ app.MapPost(
     {
         try
         {
-            await using var handle = await db.AcquireDistributedLockAsync(
+            await using var handle = await db.Database.AcquireDistributedLockAsync(
                 "products:price-sync",
                 timeout: TimeSpan.FromSeconds(3)
             );

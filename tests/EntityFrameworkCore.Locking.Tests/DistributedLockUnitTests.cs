@@ -1,12 +1,10 @@
 using System.Data;
 using System.Data.Common;
 using AwesomeAssertions;
-using EntityFrameworkCore.Locking;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.Internal;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Xunit;
 
 namespace EntityFrameworkCore.Locking.Tests;
@@ -36,14 +34,14 @@ public class DistributedLockUnitTests
     public async Task AcquireDistributedLockAsync_NullKey_ThrowsArgumentException()
     {
         await using var ctx = CreateContext();
-        await Assert.ThrowsAsync<ArgumentException>(() => ctx.AcquireDistributedLockAsync(null!));
+        await Assert.ThrowsAsync<ArgumentException>(() => ctx.Database.AcquireDistributedLockAsync(null!));
     }
 
     [Fact]
     public async Task AcquireDistributedLockAsync_EmptyKey_ThrowsArgumentException()
     {
         await using var ctx = CreateContext();
-        await Assert.ThrowsAsync<ArgumentException>(() => ctx.AcquireDistributedLockAsync(""));
+        await Assert.ThrowsAsync<ArgumentException>(() => ctx.Database.AcquireDistributedLockAsync(""));
     }
 
     [Fact]
@@ -51,7 +49,7 @@ public class DistributedLockUnitTests
     {
         await using var ctx = CreateContext();
         var longKey = new string('a', 256);
-        await Assert.ThrowsAsync<ArgumentException>(() => ctx.AcquireDistributedLockAsync(longKey));
+        await Assert.ThrowsAsync<ArgumentException>(() => ctx.Database.AcquireDistributedLockAsync(longKey));
     }
 
     [Fact]
@@ -59,7 +57,7 @@ public class DistributedLockUnitTests
     {
         await using var ctx = CreateContext();
         var key = new string('a', 255);
-        await using var handle = await ctx.AcquireDistributedLockAsync(key);
+        await using var handle = await ctx.Database.AcquireDistributedLockAsync(key);
         handle.Should().NotBeNull();
         handle.Key.Should().Be(key);
     }
@@ -70,7 +68,7 @@ public class DistributedLockUnitTests
     public void SupportsDistributedLocks_WithFakeProvider_ReturnsTrue()
     {
         using var ctx = CreateContext();
-        ctx.SupportsDistributedLocks().Should().BeTrue();
+        ctx.Database.SupportsDistributedLocks().Should().BeTrue();
     }
 
     // --- Handle idempotence ---
@@ -79,7 +77,7 @@ public class DistributedLockUnitTests
     public async Task ReleaseAsync_CalledTwice_IsIdempotent()
     {
         await using var ctx = CreateContext();
-        var handle = await ctx.AcquireDistributedLockAsync("key");
+        var handle = await ctx.Database.AcquireDistributedLockAsync("key");
         await handle.ReleaseAsync();
         // Second release should not throw
         await handle.ReleaseAsync();
@@ -89,7 +87,7 @@ public class DistributedLockUnitTests
     public async Task DisposeAfterRelease_IsIdempotent()
     {
         await using var ctx = CreateContext();
-        var handle = await ctx.AcquireDistributedLockAsync("key");
+        var handle = await ctx.Database.AcquireDistributedLockAsync("key");
         await handle.ReleaseAsync();
         await handle.DisposeAsync(); // no throw
     }
@@ -100,9 +98,11 @@ public class DistributedLockUnitTests
     public async Task DoubleAcquire_SameKey_ThrowsLockAlreadyHeld()
     {
         await using var ctx = CreateContext();
-        await using var h1 = await ctx.AcquireDistributedLockAsync("dup-key");
+        await using var h1 = await ctx.Database.AcquireDistributedLockAsync("dup-key");
 
-        var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() => ctx.AcquireDistributedLockAsync("dup-key"));
+        var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() =>
+            ctx.Database.AcquireDistributedLockAsync("dup-key")
+        );
         ex.Key.Should().Be("dup-key");
     }
 
@@ -110,10 +110,10 @@ public class DistributedLockUnitTests
     public async Task AfterRelease_SameKey_CanBeAcquiredAgain()
     {
         await using var ctx = CreateContext();
-        var h1 = await ctx.AcquireDistributedLockAsync("reuse-key");
+        var h1 = await ctx.Database.AcquireDistributedLockAsync("reuse-key");
         await h1.ReleaseAsync();
 
-        await using var h2 = await ctx.AcquireDistributedLockAsync("reuse-key");
+        await using var h2 = await ctx.Database.AcquireDistributedLockAsync("reuse-key");
         h2.Should().NotBeNull();
     }
 
@@ -123,7 +123,7 @@ public class DistributedLockUnitTests
     public async Task TryAcquireDistributedLockAsync_FreeKey_ReturnsHandle()
     {
         await using var ctx = CreateContext();
-        var handle = await ctx.TryAcquireDistributedLockAsync("free");
+        var handle = await ctx.Database.TryAcquireDistributedLockAsync("free");
         handle.Should().NotBeNull();
         await handle!.DisposeAsync();
     }

@@ -5,31 +5,32 @@ using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.Internal;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EntityFrameworkCore.Locking;
 
 /// <summary>
-/// Extension methods on <see cref="DbContext"/> for acquiring distributed (advisory) locks.
-/// No active transaction is required — locks are session-scoped.
+/// Extension methods on <see cref="DatabaseFacade"/> (accessed via <c>DbContext.Database</c>) for
+/// acquiring distributed (advisory) locks. No active transaction is required — locks are session-scoped.
 /// </summary>
-public static class DbContextDistributedLockExtensions
+public static class DatabaseFacadeDistributedLockExtensions
 {
     /// <summary>
     /// Acquires a distributed lock with the given key, blocking until it is available.
     /// </summary>
-    /// <param name="ctx">The DbContext whose connection will hold the lock.</param>
+    /// <param name="database">The <see cref="DatabaseFacade"/> whose connection will hold the lock.</param>
     /// <param name="key">Lock key (1–255 characters).</param>
     /// <param name="timeout">Maximum time to wait. Throws <see cref="LockTimeoutException"/> if exceeded. Null = wait indefinitely.</param>
     /// <param name="ct">Cancellation token. Cancellation is best-effort (driver-dependent).</param>
     public static async Task<IDistributedLockHandle> AcquireDistributedLockAsync(
-        this DbContext ctx,
+        this DatabaseFacade database,
         string key,
         TimeSpan? timeout = null,
         CancellationToken ct = default
     )
     {
-        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct).ConfigureAwait(false);
+        var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct).ConfigureAwait(false);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
@@ -56,12 +57,12 @@ public static class DbContextDistributedLockExtensions
     /// Returns null immediately if the lock is held by another connection.
     /// </summary>
     public static async Task<IDistributedLockHandle?> TryAcquireDistributedLockAsync(
-        this DbContext ctx,
+        this DatabaseFacade database,
         string key,
         CancellationToken ct = default
     )
     {
-        var (provider, connection, openedByMe) = await PrepareAsync(ctx, key, ct).ConfigureAwait(false);
+        var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct).ConfigureAwait(false);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
@@ -93,12 +94,12 @@ public static class DbContextDistributedLockExtensions
 
     /// <summary>Acquires a distributed lock synchronously.</summary>
     public static IDistributedLockHandle AcquireDistributedLock(
-        this DbContext ctx,
+        this DatabaseFacade database,
         string key,
         TimeSpan? timeout = null
     )
     {
-        var (provider, connection, openedByMe) = PrepareSync(ctx, key);
+        var (ctx, provider, connection, openedByMe) = PrepareSync(database, key);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
@@ -121,9 +122,9 @@ public static class DbContextDistributedLockExtensions
     }
 
     /// <summary>Attempts to acquire a distributed lock synchronously. Returns null if contested.</summary>
-    public static IDistributedLockHandle? TryAcquireDistributedLock(this DbContext ctx, string key)
+    public static IDistributedLockHandle? TryAcquireDistributedLock(this DatabaseFacade database, string key)
     {
-        var (provider, connection, openedByMe) = PrepareSync(ctx, key);
+        var (ctx, provider, connection, openedByMe) = PrepareSync(database, key);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
@@ -153,46 +154,51 @@ public static class DbContextDistributedLockExtensions
         }
     }
 
-    /// <summary>Returns true if the current DbContext's provider supports distributed locks.</summary>
-    public static bool SupportsDistributedLocks(this DbContext ctx)
+    /// <summary>Returns true if the configured EF Core provider supports distributed locks.</summary>
+    public static bool SupportsDistributedLocks(this DatabaseFacade database)
     {
-        var lp = ctx.GetInfrastructure().GetService<ILockingProvider>();
+        var lp = ((IInfrastructure<IServiceProvider>)database).Instance.GetService<ILockingProvider>();
         return lp?.AdvisoryLockProvider is not null;
     }
 
-    private static async Task<(IAdvisoryLockProvider provider, DbConnection connection, bool openedByMe)> PrepareAsync(
+    private static async Task<(
         DbContext ctx,
-        string key,
-        CancellationToken ct
-    )
+        IAdvisoryLockProvider provider,
+        DbConnection connection,
+        bool openedByMe
+    )> PrepareAsync(DatabaseFacade database, string key, CancellationToken ct)
     {
         ValidateKey(key);
-        var provider = ResolveProvider(ctx);
-        var connection = ctx.Database.GetDbConnection();
+        var ctx = GetContext(database);
+        var provider = ResolveProvider(database);
+        var connection = database.GetDbConnection();
         bool openedByMe = false;
         if (connection.State != ConnectionState.Open)
         {
             await connection.OpenAsync(ct).ConfigureAwait(false);
             openedByMe = true;
         }
-        return (provider, connection, openedByMe);
+        return (ctx, provider, connection, openedByMe);
     }
 
-    private static (IAdvisoryLockProvider provider, DbConnection connection, bool openedByMe) PrepareSync(
+    private static (
         DbContext ctx,
-        string key
-    )
+        IAdvisoryLockProvider provider,
+        DbConnection connection,
+        bool openedByMe
+    ) PrepareSync(DatabaseFacade database, string key)
     {
         ValidateKey(key);
-        var provider = ResolveProvider(ctx);
-        var connection = ctx.Database.GetDbConnection();
+        var ctx = GetContext(database);
+        var provider = ResolveProvider(database);
+        var connection = database.GetDbConnection();
         bool openedByMe = false;
         if (connection.State != ConnectionState.Open)
         {
             connection.Open();
             openedByMe = true;
         }
-        return (provider, connection, openedByMe);
+        return (ctx, provider, connection, openedByMe);
     }
 
     private static void ValidateKey(string key)
@@ -203,9 +209,12 @@ public static class DbContextDistributedLockExtensions
             throw new ArgumentException("Lock key must not exceed 255 characters.", nameof(key));
     }
 
-    private static IAdvisoryLockProvider ResolveProvider(DbContext ctx)
+    private static DbContext GetContext(DatabaseFacade database) =>
+        ((IDatabaseFacadeDependenciesAccessor)database).Context;
+
+    private static IAdvisoryLockProvider ResolveProvider(DatabaseFacade database)
     {
-        var lp = ctx.GetInfrastructure().GetService<ILockingProvider>();
+        var lp = ((IInfrastructure<IServiceProvider>)database).Instance.GetService<ILockingProvider>();
         if (lp is null)
             throw new LockingConfigurationException(
                 "No ILockingProvider is registered. Call UseLocking() when configuring the DbContext."

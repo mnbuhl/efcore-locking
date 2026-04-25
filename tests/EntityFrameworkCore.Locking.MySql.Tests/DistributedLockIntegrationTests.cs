@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using EntityFrameworkCore.Locking;
 using EntityFrameworkCore.Locking.MySql.Tests.Fixtures;
 using EntityFrameworkCore.Locking.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +28,7 @@ public class DistributedLockIntegrationTests(MySqlFixture fixture) : Distributed
         // Key > 64 chars is hashed to lock:<hex58> (64 chars total)
         var longKey = new string('x', 100);
         await using var ctx = CreateContext();
-        await using var handle = await ctx.AcquireDistributedLockAsync(longKey);
+        await using var handle = await ctx.Database.AcquireDistributedLockAsync(longKey);
         handle.Should().NotBeNull();
         handle.Key.Should().Be(longKey); // public Key is the original, not encoded
     }

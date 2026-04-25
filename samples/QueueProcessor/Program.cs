@@ -42,7 +42,7 @@ Console.WriteLine("\nAll workers finished.");
 Console.WriteLine("\nRunning maintenance sweep...");
 await using (var db = new JobDbContext(optionsBuilder.Options))
 {
-    await using var sweepHandle = await db.TryAcquireDistributedLockAsync("jobs:maintenance-sweep");
+    await using var sweepHandle = await db.Database.TryAcquireDistributedLockAsync("jobs:maintenance-sweep");
     if (sweepHandle is null)
     {
         Console.WriteLine("Another process is already running the sweep — skipping.");

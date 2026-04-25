@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using EntityFrameworkCore.Locking;
 using EntityFrameworkCore.Locking.SqlServer.Tests.Fixtures;
 using EntityFrameworkCore.Locking.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -20,14 +19,14 @@ public class DistributedLockIntegrationTests(SqlServerFixture fixture) : Distrib
     {
         const string key = "ss-cancel-timeout";
         await using var ctxA = CreateContext();
-        await using var handleA = await ctxA.AcquireDistributedLockAsync(key);
+        await using var handleA = await ctxA.Database.AcquireDistributedLockAsync(key);
 
         await using var ctxB = CreateContext();
         using var cts = new CancellationTokenSource();
         cts.CancelAfter(200);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        Func<Task> act = () => ctxB.AcquireDistributedLockAsync(key, TimeSpan.FromSeconds(10), cts.Token);
+        Func<Task> act = () => ctxB.Database.AcquireDistributedLockAsync(key, TimeSpan.FromSeconds(10), cts.Token);
         await act.Should().ThrowAsync<Exception>();
         sw.Stop();
         sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15));

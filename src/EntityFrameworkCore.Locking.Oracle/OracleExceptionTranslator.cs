@@ -23,10 +23,7 @@ public sealed class OracleExceptionTranslator : IExceptionTranslator
 
         return oraEx.Number switch
         {
-            54 => new LockTimeoutException(
-                "Oracle resource busy (NOWAIT specified or wait timeout expired).",
-                oraEx
-            ),
+            54 => new LockTimeoutException("Oracle resource busy (NOWAIT specified or wait timeout expired).", oraEx),
             30006 => new LockTimeoutException("Oracle resource busy; WAIT timeout expired.", oraEx),
             60 => new DeadlockException("Oracle deadlock detected.", oraEx),
             6550 => new LockingConfigurationException(

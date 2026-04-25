@@ -21,8 +21,7 @@ public sealed class OracleLockSqlGenerator : ILockSqlGenerator
 
         return options.Behavior switch
         {
-            LockBehavior.Wait when options.Timeout.HasValue =>
-                $"FOR UPDATE WAIT {WaitSeconds(options.Timeout.Value)}",
+            LockBehavior.Wait when options.Timeout.HasValue => $"FOR UPDATE WAIT {WaitSeconds(options.Timeout.Value)}",
             LockBehavior.Wait => "FOR UPDATE",
             LockBehavior.SkipLocked => "FOR UPDATE SKIP LOCKED",
             LockBehavior.NoWait => "FOR UPDATE NOWAIT",

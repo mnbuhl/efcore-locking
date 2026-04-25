@@ -84,13 +84,12 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
 
     private static void ValidateAndPrepare(DbCommand command, CommandEventData eventData)
     {
-        var lockOptions = LockContext.Current;
-        if (lockOptions is null)
+        if (!TryExtractLockOptions(command.CommandText, out var lockOptions))
             return;
 
         if (eventData.Context?.Database.CurrentTransaction is null)
-            throw new InvalidOperationException(
-                "ForUpdate requires an active transaction. "
+            throw new LockingConfigurationException(
+                "ForUpdate/ForShare requires an active transaction. "
                     + "Call BeginTransaction() before executing a locking query."
             );
 
@@ -98,9 +97,24 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         if (provider is null)
             return;
 
-        var preSql = provider.RowLockGenerator.GeneratePreStatementSql(lockOptions);
+        var preSql = provider.RowLockGenerator.GeneratePreStatementSql(lockOptions!);
         if (preSql is not null && !command.CommandText.StartsWith(preSql, StringComparison.Ordinal))
             command.CommandText = preSql + ";\n" + command.CommandText;
+    }
+
+    private static bool TryExtractLockOptions(string commandText, out LockOptions? lockOptions)
+    {
+        lockOptions = null;
+        var prefixIndex = commandText.IndexOf(LockTagConstants.Prefix, StringComparison.Ordinal);
+        if (prefixIndex < 0)
+            return false;
+
+        var tagEnd = commandText.IndexOf('\n', prefixIndex);
+        var tag = tagEnd < 0
+            ? commandText[prefixIndex..].TrimEnd()
+            : commandText[prefixIndex..tagEnd].TrimEnd();
+
+        return LockTagConstants.TryParse(tag, out lockOptions);
     }
 
     private static DbDataReader WrapReader(DbDataReader reader, DbContext? context)

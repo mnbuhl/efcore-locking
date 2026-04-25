@@ -7,9 +7,7 @@ namespace EntityFrameworkCore.Locking.MySql;
 
 public static class MySqlLockingServiceCollectionExtensions
 {
-    /// <summary>
-    /// Adds row-level locking support for MySQL (Pomelo). Call after UseMySql().
-    /// </summary>
+    /// <summary>Enables the locking interceptor for MySQL (Pomelo). Call after UseMySql().</summary>
     public static DbContextOptionsBuilder<TContext> UseLocking<TContext>(
         this DbContextOptionsBuilder<TContext> optionsBuilder
     )
@@ -19,9 +17,7 @@ public static class MySqlLockingServiceCollectionExtensions
         return optionsBuilder;
     }
 
-    /// <summary>
-    /// Adds row-level locking support for MySQL (Pomelo). Call after UseMySql().
-    /// </summary>
+    /// <inheritdoc cref="UseLocking{TContext}(DbContextOptionsBuilder{TContext})"/>
     public static DbContextOptionsBuilder UseLocking(this DbContextOptionsBuilder optionsBuilder)
     {
         var extension = new LockingOptionsExtension(new MySqlLockingProvider());

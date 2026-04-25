@@ -2,7 +2,7 @@
 
 Pessimistic locking for EF Core. Supports PostgreSQL, MySQL, and SQL Server.
 
-- **Row-level locks** — `ForUpdate()` / `ForShare()` LINQ extension methods scoped to a transaction
+- **Row-level locks** — `ForUpdate()` / `ForShare()` LINQ extensions, scoped to a transaction
 - **Distributed locks** — `AcquireDistributedLockAsync()` session-scoped advisory locks, no transaction required
 
 ## Installation
@@ -34,14 +34,14 @@ services.AddDbContext<AppDbContext>(o =>
      .UseLocking());
 ```
 
-## Usage
+## Row-level locks
 
-All locking queries **require an active transaction**.
+All row-level locking queries **require an active transaction**.
 
 ```csharp
 await using var tx = await ctx.Database.BeginTransactionAsync();
 
-// Basic exclusive lock (FOR UPDATE / WITH (UPDLOCK, HOLDLOCK, ROWLOCK))
+// Exclusive lock (FOR UPDATE / WITH (UPDLOCK, HOLDLOCK, ROWLOCK))
 var product = await ctx.Products
     .Where(p => p.Id == id)
     .ForUpdate()
@@ -53,7 +53,7 @@ var available = await ctx.Products
     .ForUpdate(LockBehavior.SkipLocked)
     .ToListAsync();
 
-// Fail immediately if lock cannot be acquired
+// Fail immediately if the lock cannot be acquired
 var row = await ctx.Products
     .Where(p => p.Id == id)
     .ForUpdate(LockBehavior.NoWait)
@@ -74,31 +74,23 @@ var row = await ctx.Products
 await tx.CommitAsync();
 ```
 
-### PostgreSQL-only: ForNoKeyUpdate and ForKeyShare
+### PostgreSQL-only modes
 
-These modes are available when using the `EntityFrameworkCore.Locking.PostgreSQL` package:
+Available when referencing `EntityFrameworkCore.Locking.PostgreSQL`:
 
 ```csharp
 // FOR NO KEY UPDATE — blocks writers but allows FOR KEY SHARE (FK lookups)
-var row = await ctx.Products
-    .Where(p => p.Id == id)
-    .ForNoKeyUpdate()
-    .FirstOrDefaultAsync();
+await ctx.Products.Where(p => p.Id == id).ForNoKeyUpdate().FirstOrDefaultAsync();
 
 // FOR KEY SHARE — minimal shared lock, only blocks FOR UPDATE
-// Useful for FK-referencing queries that should not block non-key updates
-var row = await ctx.Products
-    .Where(p => p.Id == id)
-    .ForKeyShare()
-    .FirstOrDefaultAsync();
+await ctx.Products.Where(p => p.Id == id).ForKeyShare().FirstOrDefaultAsync();
 ```
 
-### Include with locking (PostgreSQL)
+### Include with locking
 
-PostgreSQL automatically scopes the lock to the root table when a collection `Include` is present (emits `FOR UPDATE OF "t"`), so you can use `Include` directly without `AsSplitQuery()`:
+On PostgreSQL, collection `Include` emits `FOR UPDATE OF "t"` automatically to handle the outer join, so you can use `Include` directly without `AsSplitQuery()`:
 
 ```csharp
-// Works — FOR UPDATE OF "p" is emitted automatically
 var product = await ctx.Products
     .Include(p => p.OrderLines)
     .Where(p => p.Id == id)
@@ -106,9 +98,9 @@ var product = await ctx.Products
     .FirstOrDefaultAsync();
 ```
 
-### Queue processing pattern
+### Queue processing
 
-A common use of `ForUpdate(LockBehavior.SkipLocked)` is a worker queue where multiple consumers race to claim items:
+`ForUpdate(LockBehavior.SkipLocked)` is the standard building block for a worker queue where multiple consumers race to claim items:
 
 ```csharp
 await using var tx = await ctx.Database.BeginTransactionAsync();
@@ -127,46 +119,54 @@ await ctx.SaveChangesAsync();
 await tx.CommitAsync();
 ```
 
+### Lock modes and behaviors
+
+| Method | Generated SQL |
+|--------|--------------|
+| `ForUpdate()` | `FOR UPDATE` / `WITH (UPDLOCK, HOLDLOCK, ROWLOCK)` |
+| `ForUpdate(LockBehavior.NoWait)` | `FOR UPDATE NOWAIT` / `SET LOCK_TIMEOUT 0` |
+| `ForUpdate(LockBehavior.SkipLocked)` | `FOR UPDATE SKIP LOCKED` (PG/MySQL) / `WITH (UPDLOCK, ROWLOCK, READPAST)` (SQL Server) |
+| `ForUpdate(LockBehavior.Wait, timeout)` | `SET LOCAL lock_timeout` (PG) / `SET SESSION innodb_lock_wait_timeout` (MySQL) / `SET LOCK_TIMEOUT` (SQL Server) |
+| `ForShare()` | `FOR SHARE` (PostgreSQL/MySQL only) |
+| `ForNoKeyUpdate()` | `FOR NO KEY UPDATE` (PostgreSQL only) |
+| `ForKeyShare()` | `FOR KEY SHARE` (PostgreSQL only) |
+
 ## Distributed locks
 
-Distributed (advisory) locks let you coordinate across processes without tying the lock to a database row or transaction. They are session-scoped — the lock is held until you dispose the handle, or until the connection drops.
-
-No transaction is required.
+Advisory locks coordinate across processes without tying the lock to a row or transaction. They are session-scoped — held until the handle is disposed or the connection drops.
 
 ```csharp
-// Acquire — blocks until available (optional timeout)
+// Blocks until available
 await using var handle = await ctx.Database.AcquireDistributedLockAsync("invoice:generate");
-// ... critical section ...
-// lock released automatically on dispose
 
-// With a timeout — throws LockTimeoutException if not acquired within 5 s
+// With a timeout — throws LockTimeoutException if not acquired in time
 await using var handle = await ctx.Database.AcquireDistributedLockAsync(
     "report:daily", TimeSpan.FromSeconds(5));
 
-// With cancellation token
+// With cancellation
 await using var handle = await ctx.Database.AcquireDistributedLockAsync(
     "report:daily", timeout: null, cancellationToken: ct);
 
-// TryAcquire — returns null immediately if already held
+// Non-blocking — returns null immediately if held
 var handle = await ctx.Database.TryAcquireDistributedLockAsync("invoice:generate");
 if (handle is null)
     return Results.Conflict("Another process is generating the invoice.");
 await using (handle) { /* critical section */ }
 
-// Synchronous variants are also available
+// Synchronous variants
 using var handle = ctx.Database.AcquireDistributedLock("report:daily");
 var handle = ctx.Database.TryAcquireDistributedLock("report:daily");
 
-// Check support at runtime
+// Runtime check
 if (ctx.Database.SupportsDistributedLocks()) { ... }
 ```
 
 ### Lock keys
 
-Keys are plain strings, up to **255 characters**. The library handles provider-specific encoding internally:
+Keys are plain strings, up to **255 characters**. Provider-specific encoding is handled internally:
 
-- **PostgreSQL** — hashed to a `bigint` via XxHash32 with a namespace prefix (`"EFLK"`); the hash is computed in-process so no extra round-trip is needed.
-- **MySQL** — passed as-is for keys ≤ 64 UTF-8 bytes; longer keys are SHA-256 hashed to `lock:<hex58>` (64 chars). The `lock:` prefix is reserved.
+- **PostgreSQL** — hashed to a `bigint` via XxHash32 with a namespace prefix (`"EFLK"`), computed in-process.
+- **MySQL** — passed as-is for keys ≤ 64 UTF-8 bytes; longer keys are SHA-256 hashed to `lock:<hex58>`. The `lock:` prefix is reserved.
 - **SQL Server** — passed as-is (max 255 chars, enforced upstream).
 
 ### Provider-specific behavior
@@ -177,50 +177,9 @@ Keys are plain strings, up to **255 characters**. The library handles provider-s
 | Timeout | `SET LOCAL lock_timeout` (ms) | `GET_LOCK(@key, seconds)` — rounded up to 1 s | `@LockTimeout` ms |
 | Cancellation | Driver-level (best-effort) | `KILL QUERY` side-channel | Attention signal |
 
-**MySQL timeout precision:** `GET_LOCK` timeout is in whole seconds. Sub-second timeouts are rounded up to 1 second.
+Advisory lock SQL is a blocking database call. Cancellation is a best-effort signal to the driver; if the driver does not honor it before the timeout fires, the call completes via timeout. Combine a `timeout` with the `CancellationToken` for bounded waits.
 
-**Cancellation caveat:** advisory lock SQL is a blocking database call. Cancellation sends a cancel signal to the driver; if the driver does not honor it before the timeout fires, the call completes via timeout. Always combine a `timeout` with the `CancellationToken` for bounded waits.
-
-### Exception handling
-
-```csharp
-try
-{
-    await using var handle = await ctx.Database.AcquireDistributedLockAsync(
-        "report:daily", TimeSpan.FromSeconds(5));
-}
-catch (LockTimeoutException)
-{
-    // Not acquired within the timeout
-}
-catch (LockAlreadyHeldException ex)
-{
-    // Same DbContext + connection attempted to acquire the same key twice
-    // ex.Key contains the key name
-}
-catch (LockingConfigurationException)
-{
-    // Provider does not support distributed locks, or UseLocking() was not called
-}
-```
-
-`LockAlreadyHeldException` is thrown synchronously before any database call when the same `(DbContext, connection, key)` triple is already registered. Acquiring the same key from two **different** `DbContext` instances on different connections will block (or return `null` for `TryAcquire`) as expected.
-
-## Lock modes and behaviors
-
-| Method | Generated SQL |
-|--------|--------------|
-| `ForUpdate()` | `FOR UPDATE` / `WITH (UPDLOCK, HOLDLOCK, ROWLOCK)` |
-| `ForUpdate(LockBehavior.NoWait)` | `FOR UPDATE NOWAIT` / `SET LOCK_TIMEOUT 0` |
-| `ForUpdate(LockBehavior.SkipLocked)` | `FOR UPDATE SKIP LOCKED` (PG/MySQL) / `WITH (UPDLOCK, ROWLOCK, READPAST)` (SQL Server) |
-| `ForUpdate(LockBehavior.Wait, timeout)` | `SET LOCAL lock_timeout = '500ms'` (PG) / `SET SESSION innodb_lock_wait_timeout` (MySQL) / `SET LOCK_TIMEOUT 500` (SQL Server) |
-| `ForShare()` | `FOR SHARE` (PostgreSQL/MySQL only) |
-| `ForNoKeyUpdate()` | `FOR NO KEY UPDATE` (PostgreSQL only) |
-| `ForKeyShare()` | `FOR KEY SHARE` (PostgreSQL only) |
-
-## Exception handling
-
-Lock failures throw typed exceptions from `EntityFrameworkCore.Locking.Exceptions`:
+## Exceptions
 
 ```csharp
 try
@@ -230,30 +189,38 @@ try
         .ForUpdate(LockBehavior.NoWait)
         .FirstOrDefaultAsync();
 }
-catch (LockTimeoutException ex)
+catch (LockTimeoutException)
 {
-    // Lock could not be acquired (NOWAIT or timeout exceeded)
+    // NOWAIT failed or timeout exceeded
 }
-catch (DeadlockException ex)
+catch (DeadlockException)
 {
     // Deadlock detected — retry the transaction
 }
-catch (LockingConfigurationException ex)
+catch (LockAlreadyHeldException ex)
+{
+    // Distributed lock: same key acquired twice on the same connection.
+    // ex.Key contains the key name.
+}
+catch (LockingConfigurationException)
 {
     // Programmer error: missing transaction, unsupported query shape,
-    // or unsupported lock mode for this provider
+    // or provider does not support the requested mode.
 }
 ```
 
-**Exception hierarchy:**
-- `LockingException` (base)
-  - `LockAcquisitionFailedException`
-    - `LockTimeoutException` — timeout or NOWAIT failure
-    - `DeadlockException` — deadlock victim
-    - `LockAlreadyHeldException` — same key acquired twice on the same connection (distributed locks)
-  - `LockingConfigurationException` — programmer error (missing transaction, unsupported query shape, provider not configured)
+`LockAlreadyHeldException` is thrown synchronously before any database call when the same `(DbContext, connection, key)` triple is already registered. Acquiring the same key from two **different** `DbContext` instances on different connections will block (or return `null` for `TryAcquire`) as expected.
 
-## Provider limitations
+**Exception hierarchy:**
+
+- `LockingException`
+  - `LockAcquisitionFailedException`
+    - `LockTimeoutException`
+    - `DeadlockException`
+    - `LockAlreadyHeldException`
+  - `LockingConfigurationException`
+
+## Provider support
 
 | Feature | PostgreSQL | MySQL | SQL Server |
 |---------|-----------|-------|-----------|
@@ -265,26 +232,24 @@ catch (LockingConfigurationException ex)
 | `NoWait` | ✓ | ✓ | ✓ |
 | Wait with timeout | ✓ (ms) | ✓ (ceil to 1s) | ✓ (ms) |
 
-`ForNoKeyUpdate` and `ForKeyShare` are PostgreSQL-only extension methods available when the `EntityFrameworkCore.Locking.PostgreSQL` package is installed. Using `ForShare` on SQL Server throws `LockingConfigurationException`.
+SQL Server uses `WITH (UPDLOCK, ROWLOCK, READPAST)` for `SkipLocked` — `READPAST` skips rows held under row-level or page-level locks, but rows under a table-level lock are blocked rather than skipped.
 
-**SQL Server `SkipLocked` limitation:** SQL Server uses `WITH (UPDLOCK, ROWLOCK, READPAST)` instead of `SKIP LOCKED`. `READPAST` only skips rows held under row-level or page-level locks — rows under a table-level lock are blocked rather than skipped. For typical queue-processing workloads this behaves identically to `SKIP LOCKED` on PostgreSQL/MySQL.
-
-**MySQL timeout precision:** MySQL's `innodb_lock_wait_timeout` is in whole seconds. Sub-second timeouts are rounded up to 1 second.
+MySQL's `innodb_lock_wait_timeout` is in whole seconds, so sub-second timeouts are rounded up to 1 second.
 
 ## Unsupported query shapes
 
-`UNION`, `EXCEPT`, `INTERSECT` with locking throw `LockingConfigurationException` at query execution time. Use per-query locks on individual queries before combining results.
+`UNION`, `EXCEPT`, `INTERSECT` combined with locking throw `LockingConfigurationException` at query execution time. Lock individual queries before combining results.
 
-`AsSplitQuery()` combined with locking throws `LockingConfigurationException` — use regular `Include()` instead (on PostgreSQL, `FOR UPDATE OF` is emitted automatically to handle outer joins).
+`AsSplitQuery()` combined with locking throws `LockingConfigurationException` — use regular `Include()` instead. On PostgreSQL, `FOR UPDATE OF` is emitted automatically to handle the outer join.
 
 ## Supported database versions
 
-| Database | Minimum version | Notes |
-|----------|----------------|-------|
-| PostgreSQL | **14** | Default minimum for Npgsql 8.x. PG 12+ works if you call `.SetPostgresVersion(12, 0)` in `UseNpgsql`. All locking features (`FOR NO KEY UPDATE`, `FOR KEY SHARE`, `SKIP LOCKED`, `NOWAIT`) have been available since PG 9.3/9.5. |
-| MySQL | **8.0** | `FOR SHARE`, `SKIP LOCKED`, and `NOWAIT` were introduced in MySQL 8.0.1. MySQL 5.7 is not supported. |
-| MariaDB | **10.6** | `SKIP LOCKED` requires 10.6+. `NOWAIT` requires 10.3+. `ForShare` emits `LOCK IN SHARE MODE` (MariaDB does not support the `FOR SHARE` syntax). |
-| SQL Server | **2019** | All hints (`UPDLOCK`, `HOLDLOCK`, `ROWLOCK`, `READPAST`) and `SET LOCK_TIMEOUT` are available on all supported versions. Azure SQL Database is also supported. |
+| Database | Minimum | Notes |
+|----------|---------|-------|
+| PostgreSQL | 14 | Default minimum for Npgsql 8.x. PG 12+ works if you call `.SetPostgresVersion(12, 0)` in `UseNpgsql`. |
+| MySQL | 8.0 | `FOR SHARE`, `SKIP LOCKED`, and `NOWAIT` were introduced in 8.0.1. MySQL 5.7 is not supported. |
+| MariaDB | 10.6 | `SKIP LOCKED` requires 10.6+. `NOWAIT` requires 10.3+. `ForShare` emits `LOCK IN SHARE MODE`. |
+| SQL Server | 2019 | Azure SQL Database is also supported. |
 
 ## Target frameworks
 
@@ -292,13 +257,13 @@ catch (LockingConfigurationException ex)
 
 ## Benchmarks
 
-The `benchmarks/` directory contains BenchmarkDotNet benchmarks measuring the overhead added by the locking SQL generator and interceptor across all three providers.
+The `benchmarks/` directory contains BenchmarkDotNet benchmarks measuring the overhead added by the SQL generator and interceptor.
 
 ```bash
 dotnet run -c Release --project benchmarks/EntityFrameworkCore.Locking.Benchmarks -- --version=<x.y.z>
 ```
 
-The `--version` argument is required and labels the results folder (`benchmarks/EntityFrameworkCore.Locking.Benchmarks/results/v<x.y.z>/`). Additional BenchmarkDotNet arguments (e.g. `--filter '*SqlGeneration*'`) can be appended after.
+`--version` is required and labels the results folder (`results/v<x.y.z>/`). Additional BenchmarkDotNet arguments (e.g. `--filter '*SqlGeneration*'`) can be appended.
 
 ## License
 

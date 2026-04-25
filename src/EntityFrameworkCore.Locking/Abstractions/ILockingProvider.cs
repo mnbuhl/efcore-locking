@@ -1,9 +1,6 @@
 namespace EntityFrameworkCore.Locking.Abstractions;
 
-/// <summary>
-/// Root provider abstraction. Phase 1 exposes only row-level locking.
-/// Phase 2 adds advisory locks by implementing AdvisoryLockProvider — non-breaking via C# DIM.
-/// </summary>
+/// <summary>Root provider abstraction for the locking library.</summary>
 public interface ILockingProvider
 {
     /// <summary>Row-level lock SQL generator for this provider.</summary>
@@ -15,9 +12,6 @@ public interface ILockingProvider
     /// <summary>Translates provider-specific database exceptions to typed locking exceptions.</summary>
     IExceptionTranslator ExceptionTranslator { get; }
 
-    /// <summary>
-    /// Phase 2 seam: advisory lock provider. Returns null in Phase 1.
-    /// Phase 2 providers override this default interface member.
-    /// </summary>
+    /// <summary>Advisory lock provider, or null if the provider does not support distributed locks.</summary>
     IAdvisoryLockProvider? AdvisoryLockProvider => null;
 }

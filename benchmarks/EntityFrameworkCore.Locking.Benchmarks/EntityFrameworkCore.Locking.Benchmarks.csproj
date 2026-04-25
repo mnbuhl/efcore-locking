@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- Pomelo.EntityFrameworkCore.MySql has no net10.0 build yet; benchmarks exercise all providers so cap at net9.0. -->
+    <TargetFramework>net9.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <ServerGarbageCollection>true</ServerGarbageCollection>
@@ -11,9 +12,9 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" VersionOverride="9.0.4" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" VersionOverride="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" VersionOverride="9.0.6" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>EntityFrameworkCore.Locking.Oracle</PackageId>
+    <Description>Oracle provider for EntityFrameworkCore.Locking.</Description>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- EF1001: intentional use of EF Core internal APIs (QuerySqlGenerator) -->
+    <NoWarn>$(NoWarn);EF1001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EntityFrameworkCore.Locking\EntityFrameworkCore.Locking.csproj" />
+    <PackageReference Include="Oracle.EntityFrameworkCore" Version="[8.21.121, )" />
+  </ItemGroup>
+</Project>

@@ -14,6 +14,7 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.MySql" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="3.10.0" />
+    <PackageVersion Include="Testcontainers.Oracle" Version="3.10.0" />
     <!-- Provider versions for test projects — latest 8.x patches with no known CVEs -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.14" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />

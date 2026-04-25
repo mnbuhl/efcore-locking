@@ -108,3 +108,30 @@ jobs:
           --no-restore --configuration Release
           --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
           --logger "console;verbosity=normal"
+
+  test-oracle:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dotnet: ['8.0.x', '9.0.x', '10.0.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ matrix.dotnet }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Test (Oracle)
+        # Oracle Free container startup can take several minutes on cold-pull; long timeout.
+        timeout-minutes: 30
+        run: >
+          dotnet test tests/EntityFrameworkCore.Locking.Oracle.Tests
+          --no-restore --configuration Release
+          --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
+          --logger "console;verbosity=normal"

@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.PostgreSQL")]
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.MySql")]
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.SqlServer")]
+[assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.Oracle")]
 
 // Benchmark assemblies
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.Benchmarks")]
@@ -14,3 +15,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.PostgreSQL.Tests")]
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.MySql.Tests")]
 [assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.SqlServer.Tests")]
+[assembly: InternalsVisibleTo("EntityFrameworkCore.Locking.Oracle.Tests")]

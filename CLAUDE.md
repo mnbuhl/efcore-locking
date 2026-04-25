@@ -21,6 +21,7 @@ dotnet test tests/EntityFrameworkCore.Locking.Tests
 dotnet test tests/EntityFrameworkCore.Locking.PostgreSQL.Tests
 dotnet test tests/EntityFrameworkCore.Locking.MySql.Tests
 dotnet test tests/EntityFrameworkCore.Locking.SqlServer.Tests
+dotnet test tests/EntityFrameworkCore.Locking.Oracle.Tests
 
 # Run a single test by name
 dotnet test tests/EntityFrameworkCore.Locking.PostgreSQL.Tests --filter "FullyQualifiedName~TestClassName.MethodName"
@@ -31,7 +32,7 @@ dotnet test
 
 ## Architecture
 
-The library is split into a provider-agnostic core and three database provider projects. Consumers reference only the provider project they need.
+The library is split into a provider-agnostic core and four database provider projects (PostgreSQL, MySQL, SQL Server, Oracle). Consumers reference only the provider project they need.
 
 ### Row-level locking flow
 
@@ -51,7 +52,7 @@ The library is split into a provider-agnostic core and three database provider p
 
 ### Provider structure
 
-Each of the three provider projects (`EntityFrameworkCore.Locking.PostgreSQL`, `.MySql`, `.SqlServer`) contains the same seven-file shape:
+Each of the four provider projects (`EntityFrameworkCore.Locking.PostgreSQL`, `.MySql`, `.SqlServer`, `.Oracle`) contains the same seven-file shape:
 
 | File | Role |
 |------|------|
@@ -72,6 +73,8 @@ Each of the three provider projects (`EntityFrameworkCore.Locking.PostgreSQL`, `
 - `ForUpdate` / `ForShare` are incompatible with set operations (`Union`/`Except`/`Intersect`) and `AsSplitQuery()`.
 - PostgreSQL key hashing: advisory lock string keys are hashed via `XxHash32` combined with namespace prefix `0x45464C4B_00000000L` to produce a `bigint`.
 - SQL Server uses table hints (`WITH (UPDLOCK, ROWLOCK)`) injected into the `FROM` clause, not trailing clauses like PostgreSQL/MySQL.
+- Oracle has no row-level `FOR SHARE` — only `FOR UPDATE` variants. `ForShare()` throws `LockingConfigurationException`. `WAIT n` takes integer seconds; sub-second timeouts are rounded up to 1 second.
+- Oracle advisory locks use `DBMS_LOCK.ALLOCATE_UNIQUE` + `DBMS_LOCK.REQUEST` (session-scoped, `release_on_commit => FALSE`). Requires `GRANT EXECUTE ON DBMS_LOCK` to the app user; without the grant, ORA-06550 is translated to `LockingConfigurationException`.
 
 ### Build configuration
 
@@ -98,5 +101,6 @@ Each provider test project (`PostgreSQL.Tests`, `MySql.Tests`, `SqlServer.Tests`
 - **PostgreSQL**: `ForNoKeyUpdate`/`ForKeyShare` lock modes, `Except`/`Intersect` shape validation, `ForShare` skip-locked, advisory lock blocking/registry/cancellation tests.
 - **MySQL**: `WaitTimeout` overridden to `TimeSpan.FromSeconds(1)` (innodb second-granularity); `DistributedLockAcquireTimeout` overridden to `TimeSpan.FromSeconds(1)` (GET_LOCK); long-key hashing test.
 - **SqlServer**: `WaitTimeout` overridden to `TimeSpan.FromMilliseconds(500)`; `ForShare` throws `LockingConfigurationException`; cancellation test.
+- **Oracle**: `WaitTimeout` and `DistributedLockAcquireTimeout` overridden to `TimeSpan.FromSeconds(1)` (integer-second granularity for both `FOR UPDATE WAIT` and `DBMS_LOCK.REQUEST`). Fixture grants `EXECUTE ON DBMS_LOCK`.
 
 When adding a new integration test: if the behavior is identical across all three providers, add it to the appropriate base class. If it tests provider-specific SQL, exception mapping, or lock semantics, add it directly to that provider's test file.

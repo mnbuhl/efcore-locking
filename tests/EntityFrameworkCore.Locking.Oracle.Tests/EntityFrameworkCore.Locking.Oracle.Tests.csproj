@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);EF1001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\EntityFrameworkCore.Locking.Oracle\EntityFrameworkCore.Locking.Oracle.csproj" />
+    <ProjectReference Include="..\EntityFrameworkCore.Locking.Tests.Infrastructure\EntityFrameworkCore.Locking.Tests.Infrastructure.csproj" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Testcontainers.Oracle" />
+  </ItemGroup>
+</Project>

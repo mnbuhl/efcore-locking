@@ -1,6 +1,6 @@
 # EntityFrameworkCore.Locking
 
-Pessimistic locking for EF Core. Supports PostgreSQL, MySQL, and SQL Server.
+Pessimistic locking for EF Core. Supports PostgreSQL, MySQL, SQL Server, and Oracle.
 
 - **Row-level locks** — `ForUpdate()` / `ForShare()` LINQ extension methods scoped to a transaction
 - **Distributed locks** — `AcquireDistributedLockAsync()` session-scoped advisory locks, no transaction required
@@ -11,6 +11,7 @@ Pessimistic locking for EF Core. Supports PostgreSQL, MySQL, and SQL Server.
 dotnet add package EntityFrameworkCore.Locking.PostgreSQL
 dotnet add package EntityFrameworkCore.Locking.MySql
 dotnet add package EntityFrameworkCore.Locking.SqlServer
+dotnet add package EntityFrameworkCore.Locking.Oracle
 ```
 
 ## Setup
@@ -31,6 +32,11 @@ services.AddDbContext<AppDbContext>(o =>
 // SQL Server
 services.AddDbContext<AppDbContext>(o =>
     o.UseSqlServer(connectionString)
+     .UseLocking());
+
+// Oracle
+services.AddDbContext<AppDbContext>(o =>
+    o.UseOracle(connectionString)
      .UseLocking());
 ```
 
@@ -168,6 +174,7 @@ Keys are plain strings, up to **255 characters**. The library handles provider-s
 - **PostgreSQL** — hashed to a `bigint` via XxHash32 with a namespace prefix (`"EFLK"`); the hash is computed in-process so no extra round-trip is needed.
 - **MySQL** — passed as-is for keys ≤ 64 UTF-8 bytes; longer keys are SHA-256 hashed to `lock:<hex58>` (64 chars). The `lock:` prefix is reserved.
 - **SQL Server** — passed as-is (max 255 chars, enforced upstream).
+- **Oracle** — passed as-is for keys ≤ 64 UTF-8 bytes; longer keys are SHA-256 hashed to `lock:<hex58>` (64 chars) to stay under `DBMS_LOCK.ALLOCATE_UNIQUE`'s 128-byte name limit. The `lock:` prefix is reserved.
 
 ### Provider-specific behavior
 
@@ -176,6 +183,8 @@ Keys are plain strings, up to **255 characters**. The library handles provider-s
 | Native primitive | `pg_advisory_lock` | `GET_LOCK` | `sp_getapplock @LockOwner='Session'` |
 | Timeout | `SET LOCAL lock_timeout` (ms) | `GET_LOCK(@key, seconds)` — rounded up to 1 s | `@LockTimeout` ms |
 | Cancellation | Driver-level (best-effort) | `KILL QUERY` side-channel | Attention signal |
+
+**Oracle** uses `DBMS_LOCK.ALLOCATE_UNIQUE` + `DBMS_LOCK.REQUEST` with `release_on_commit => FALSE` and timeout in integer seconds (rounded up to 1 s). Cancellation is best-effort via driver cancel. Requires `GRANT EXECUTE ON DBMS_LOCK` to the application user.
 
 **MySQL timeout precision:** `GET_LOCK` timeout is in whole seconds. Sub-second timeouts are rounded up to 1 second.
 
@@ -255,21 +264,29 @@ catch (LockingConfigurationException ex)
 
 ## Provider limitations
 
-| Feature | PostgreSQL | MySQL | SQL Server |
-|---------|-----------|-------|-----------|
-| `ForUpdate` | ✓ | ✓ | ✓ |
-| `ForShare` | ✓ | ✓ | ✗ |
-| `ForNoKeyUpdate` | ✓ | ✗ | ✗ |
-| `ForKeyShare` | ✓ | ✗ | ✗ |
-| `SkipLocked` | ✓ | ✓ | ✓ (via `READPAST`) |
-| `NoWait` | ✓ | ✓ | ✓ |
-| Wait with timeout | ✓ (ms) | ✓ (ceil to 1s) | ✓ (ms) |
+| Feature | PostgreSQL | MySQL | SQL Server | Oracle |
+|---------|-----------|-------|-----------|--------|
+| `ForUpdate` | ✓ | ✓ | ✓ | ✓ |
+| `ForShare` | ✓ | ✓ | ✗ | ✗ |
+| `ForNoKeyUpdate` | ✓ | ✗ | ✗ | ✗ |
+| `ForKeyShare` | ✓ | ✗ | ✗ | ✗ |
+| `SkipLocked` | ✓ | ✓ | ✓ (via `READPAST`) | ✓ |
+| `NoWait` | ✓ | ✓ | ✓ | ✓ |
+| Wait with timeout | ✓ (ms) | ✓ (ceil to 1s) | ✓ (ms) | ✓ (ceil to 1s) |
 
-`ForNoKeyUpdate` and `ForKeyShare` are PostgreSQL-only extension methods available when the `EntityFrameworkCore.Locking.PostgreSQL` package is installed. Using `ForShare` on SQL Server throws `LockingConfigurationException`.
+`ForNoKeyUpdate` and `ForKeyShare` are PostgreSQL-only extension methods available when the `EntityFrameworkCore.Locking.PostgreSQL` package is installed. Using `ForShare` on SQL Server or Oracle throws `LockingConfigurationException` — Oracle has no row-level shared lock (only table-level `LOCK TABLE ... IN SHARE MODE`).
 
 **SQL Server `SkipLocked` limitation:** SQL Server uses `WITH (UPDLOCK, ROWLOCK, READPAST)` instead of `SKIP LOCKED`. `READPAST` only skips rows held under row-level or page-level locks — rows under a table-level lock are blocked rather than skipped. For typical queue-processing workloads this behaves identically to `SKIP LOCKED` on PostgreSQL/MySQL.
 
 **MySQL timeout precision:** MySQL's `innodb_lock_wait_timeout` is in whole seconds. Sub-second timeouts are rounded up to 1 second.
+
+**Oracle timeout precision:** Oracle's `FOR UPDATE WAIT n` and `DBMS_LOCK.REQUEST` both take integer seconds. Sub-second timeouts are rounded up to 1 second.
+
+**Oracle advisory lock prerequisite:** `AcquireDistributedLockAsync` uses `DBMS_LOCK`, which requires an explicit grant. Run once as a DBA:
+```sql
+GRANT EXECUTE ON DBMS_LOCK TO <app_user>;
+```
+Without this grant, calls throw `LockingConfigurationException` (surfaced as ORA-06550 / PLS-00201).
 
 ## Unsupported query shapes
 
@@ -285,6 +302,7 @@ catch (LockingConfigurationException ex)
 | MySQL | **8.0** | `FOR SHARE`, `SKIP LOCKED`, and `NOWAIT` were introduced in MySQL 8.0.1. MySQL 5.7 is not supported. |
 | MariaDB | **10.6** | `SKIP LOCKED` requires 10.6+. `NOWAIT` requires 10.3+. `ForShare` emits `LOCK IN SHARE MODE` (MariaDB does not support the `FOR SHARE` syntax). |
 | SQL Server | **2019** | All hints (`UPDLOCK`, `HOLDLOCK`, `ROWLOCK`, `READPAST`) and `SET LOCK_TIMEOUT` are available on all supported versions. Azure SQL Database is also supported. |
+| Oracle | **19c** | `SELECT ... FOR UPDATE [NOWAIT \| WAIT n \| SKIP LOCKED]` and `DBMS_LOCK` have been stable for many releases. Oracle Database Free (23c) is the recommended dev/test image. |
 
 ## Target frameworks
 

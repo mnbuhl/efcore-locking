@@ -14,11 +14,18 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.MySql" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="3.10.0" />
-    <!-- Provider versions for test projects — latest 8.x patches with no known CVEs -->
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+  </ItemGroup>
+
+  <!-- EF provider package versions. Each project uses VersionOverride per TFM so the compiled
+       assembly matches the EF major it ships against (see Directory.Build.props for TFMs).
+       The default versions below are net8.0 baselines — used directly on net8.0 targets and
+       overridden on net9.0/net10.0 via VersionOverride in individual csproj files.
+       Pomelo.EntityFrameworkCore.MySql has no net10.0 build yet; MySql projects cap at net9.0. -->
+  <ItemGroup>
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.14" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
-    <PackageVersion Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
+    <PackageVersion Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.14" />
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>
 </Project>

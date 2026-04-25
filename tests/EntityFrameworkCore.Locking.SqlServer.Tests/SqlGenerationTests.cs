@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using EntityFrameworkCore.Locking.SqlServer;
 using Xunit;
 
 namespace EntityFrameworkCore.Locking.SqlServer.Tests;

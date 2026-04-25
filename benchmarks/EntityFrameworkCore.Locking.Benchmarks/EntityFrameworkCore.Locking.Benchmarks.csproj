@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <!-- Pomelo.EntityFrameworkCore.MySql has no net10.0 build yet; benchmarks exercise all providers so cap at net9.0. -->
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <ServerGarbageCollection>true</ServerGarbageCollection>

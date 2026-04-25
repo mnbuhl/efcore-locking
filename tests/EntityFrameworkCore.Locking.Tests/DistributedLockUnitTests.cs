@@ -34,18 +34,14 @@ public class DistributedLockUnitTests
     public async Task AcquireDistributedLockAsync_NullKey_ThrowsLockingConfigurationException()
     {
         await using var ctx = CreateContext();
-        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            ctx.Database.AcquireDistributedLockAsync(null!)
-        );
+        await Assert.ThrowsAsync<LockingConfigurationException>(() => ctx.Database.AcquireDistributedLockAsync(null!));
     }
 
     [Fact]
     public async Task AcquireDistributedLockAsync_EmptyKey_ThrowsLockingConfigurationException()
     {
         await using var ctx = CreateContext();
-        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            ctx.Database.AcquireDistributedLockAsync("")
-        );
+        await Assert.ThrowsAsync<LockingConfigurationException>(() => ctx.Database.AcquireDistributedLockAsync(""));
     }
 
     [Fact]

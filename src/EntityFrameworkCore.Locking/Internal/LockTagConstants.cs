@@ -40,7 +40,12 @@ internal static class LockTagConstants
         )
             timeout = TimeSpan.FromMilliseconds(ms);
 
-        options = new LockOptions { Mode = mode, Behavior = behavior, Timeout = timeout };
+        options = new LockOptions
+        {
+            Mode = mode,
+            Behavior = behavior,
+            Timeout = timeout,
+        };
         return true;
     }
 }

@@ -23,13 +23,9 @@ internal static class UnsafeShapeDetector
             );
 
         if (selectExpression.IsDistinct)
-            throw new LockingConfigurationException(
-                "ForUpdate/ForShare is not compatible with DISTINCT queries."
-            );
+            throw new LockingConfigurationException("ForUpdate/ForShare is not compatible with DISTINCT queries.");
 
         if (selectExpression.GroupBy.Count > 0)
-            throw new LockingConfigurationException(
-                "ForUpdate/ForShare is not compatible with GROUP BY queries."
-            );
+            throw new LockingConfigurationException("ForUpdate/ForShare is not compatible with GROUP BY queries.");
     }
 }

@@ -110,9 +110,7 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
             return false;
 
         var tagEnd = commandText.IndexOf('\n', prefixIndex);
-        var tag = tagEnd < 0
-            ? commandText[prefixIndex..].TrimEnd()
-            : commandText[prefixIndex..tagEnd].TrimEnd();
+        var tag = tagEnd < 0 ? commandText[prefixIndex..].TrimEnd() : commandText[prefixIndex..tagEnd].TrimEnd();
 
         return LockTagConstants.TryParse(tag, out lockOptions);
     }

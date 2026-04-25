@@ -14,6 +14,7 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Oracle.EntityFrameworkCore" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,5 +22,6 @@
     <ProjectReference Include="..\..\src\EntityFrameworkCore.Locking.PostgreSQL\EntityFrameworkCore.Locking.PostgreSQL.csproj" />
     <ProjectReference Include="..\..\src\EntityFrameworkCore.Locking.MySql\EntityFrameworkCore.Locking.MySql.csproj" />
     <ProjectReference Include="..\..\src\EntityFrameworkCore.Locking.SqlServer\EntityFrameworkCore.Locking.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\EntityFrameworkCore.Locking.Oracle\EntityFrameworkCore.Locking.Oracle.csproj" />
   </ItemGroup>
 </Project>

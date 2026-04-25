@@ -11,6 +11,7 @@ public class SqlGenerationBenchmarks
     private PostgresBenchmarkDbContext _pg = null!;
     private MySqlBenchmarkDbContext _my = null!;
     private SqlServerBenchmarkDbContext _ms = null!;
+    private OracleBenchmarkDbContext _or = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -18,6 +19,7 @@ public class SqlGenerationBenchmarks
         _pg = new PostgresBenchmarkDbContext();
         _my = new MySqlBenchmarkDbContext();
         _ms = new SqlServerBenchmarkDbContext();
+        _or = new OracleBenchmarkDbContext();
 
         // Warm the EF Core compiled-query cache so we measure VisitSelect overhead,
         // not the one-time query compilation cost.
@@ -27,6 +29,8 @@ public class SqlGenerationBenchmarks
         _ = _my.Items.Where(x => x.Id > 0).ForUpdate().ToQueryString();
         _ = _ms.Items.Where(x => x.Id > 0).ToQueryString();
         _ = _ms.Items.Where(x => x.Id > 0).ForUpdate().ToQueryString();
+        _ = _or.Items.Where(x => x.Id > 0).ToQueryString();
+        _ = _or.Items.Where(x => x.Id > 0).ForUpdate().ToQueryString();
     }
 
     [Benchmark(Baseline = true)]
@@ -63,11 +67,22 @@ public class SqlGenerationBenchmarks
     public string SqlServer_ForUpdate_MultipleTags() =>
         _ms.Items.Where(x => x.Id > 0).TagWith("custom-tag-a").TagWith("custom-tag-b").ForUpdate().ToQueryString();
 
+    [Benchmark]
+    public string Oracle_NoLock() => _or.Items.Where(x => x.Id > 0).ToQueryString();
+
+    [Benchmark]
+    public string Oracle_ForUpdate() => _or.Items.Where(x => x.Id > 0).ForUpdate().ToQueryString();
+
+    [Benchmark]
+    public string Oracle_ForUpdate_MultipleTags() =>
+        _or.Items.Where(x => x.Id > 0).TagWith("custom-tag-a").TagWith("custom-tag-b").ForUpdate().ToQueryString();
+
     [GlobalCleanup]
     public void Cleanup()
     {
         _pg.Dispose();
         _my.Dispose();
         _ms.Dispose();
+        _or.Dispose();
     }
 }

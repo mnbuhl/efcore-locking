@@ -21,5 +21,6 @@
     <PackageVersion Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.14" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageVersion Include="Oracle.EntityFrameworkCore" Version="8.21.121" />
   </ItemGroup>
 </Project>

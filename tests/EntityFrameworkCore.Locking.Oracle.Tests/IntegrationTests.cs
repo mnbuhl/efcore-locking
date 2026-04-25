@@ -7,7 +7,7 @@ using Xunit;
 namespace EntityFrameworkCore.Locking.Oracle.Tests;
 
 [Collection("Oracle")]
-public class IntegrationTests(OracleFixture fixture) : IntegrationTestsBase
+public partial class IntegrationTests(OracleFixture fixture) : IntegrationTestsBase
 {
     protected override TestDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<TestDbContext>().UseOracle(fixture.ConnectionString).UseLocking().Options);

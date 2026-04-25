@@ -294,6 +294,8 @@ Without this grant, calls throw `LockingConfigurationException` (surfaced as ORA
 
 `AsSplitQuery()` combined with locking throws `LockingConfigurationException` — use regular `Include()` instead (on PostgreSQL, `FOR UPDATE OF` is emitted automatically to handle outer joins).
 
+**Oracle additionally rejects** `FOR UPDATE` on queries with collection `Include`, `Skip`/`Take` pagination, `DISTINCT`, `GROUP BY`, set operations, or analytic functions (ORA-02014, translated to `LockingConfigurationException`). Simplify the query shape to a single-table `SELECT`, or acquire the lock in a preceding statement before running the complex query.
+
 ## Supported database versions
 
 | Database | Minimum version | Notes |

@@ -29,7 +29,7 @@ public abstract partial class IntegrationTestsBase
     }
 
     [Fact]
-    public async Task ForUpdate_WithIncludeCollection_LoadsOrderLines()
+    public virtual async Task ForUpdate_WithIncludeCollection_LoadsOrderLines()
     {
         await using var ctx = CreateContext();
         var (_, id) = await SeedAsync(ctx);
@@ -57,7 +57,7 @@ public abstract partial class IntegrationTestsBase
     }
 
     [Fact]
-    public async Task ForUpdate_WithMultipleIncludes_LocksRootTable()
+    public virtual async Task ForUpdate_WithMultipleIncludes_LocksRootTable()
     {
         await using var ctx = CreateContext();
         var (_, id) = await SeedAsync(ctx, categoryName: "Multi");
@@ -105,7 +105,7 @@ public abstract partial class IntegrationTestsBase
     // --- Pagination ---
 
     [Fact]
-    public async Task ForUpdate_WithOrderByAndTake_LocksPage()
+    public virtual async Task ForUpdate_WithOrderByAndTake_LocksPage()
     {
         await using var ctx = CreateContext();
         var cat = new Category { Name = "Page" };
@@ -137,7 +137,7 @@ public abstract partial class IntegrationTestsBase
     }
 
     [Fact]
-    public async Task ForUpdate_WithSkipAndTake_LocksCorrectPage()
+    public virtual async Task ForUpdate_WithSkipAndTake_LocksCorrectPage()
     {
         await using var ctx = CreateContext();
         var cat = new Category { Name = "Skip" };

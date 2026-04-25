@@ -135,30 +135,30 @@ No transaction is required.
 
 ```csharp
 // Acquire — blocks until available (optional timeout)
-await using var handle = await ctx.AcquireDistributedLockAsync("invoice:generate");
+await using var handle = await ctx.Database.AcquireDistributedLockAsync("invoice:generate");
 // ... critical section ...
 // lock released automatically on dispose
 
 // With a timeout — throws LockTimeoutException if not acquired within 5 s
-await using var handle = await ctx.AcquireDistributedLockAsync(
+await using var handle = await ctx.Database.AcquireDistributedLockAsync(
     "report:daily", TimeSpan.FromSeconds(5));
 
 // With cancellation token
-await using var handle = await ctx.AcquireDistributedLockAsync(
+await using var handle = await ctx.Database.AcquireDistributedLockAsync(
     "report:daily", timeout: null, cancellationToken: ct);
 
 // TryAcquire — returns null immediately if already held
-var handle = await ctx.TryAcquireDistributedLockAsync("invoice:generate");
+var handle = await ctx.Database.TryAcquireDistributedLockAsync("invoice:generate");
 if (handle is null)
     return Results.Conflict("Another process is generating the invoice.");
 await using (handle) { /* critical section */ }
 
 // Synchronous variants are also available
-using var handle = ctx.AcquireDistributedLock("report:daily");
-var handle = ctx.TryAcquireDistributedLock("report:daily");
+using var handle = ctx.Database.AcquireDistributedLock("report:daily");
+var handle = ctx.Database.TryAcquireDistributedLock("report:daily");
 
 // Check support at runtime
-if (ctx.SupportsDistributedLocks()) { ... }
+if (ctx.Database.SupportsDistributedLocks()) { ... }
 ```
 
 ### Lock keys
@@ -186,7 +186,7 @@ Keys are plain strings, up to **255 characters**. The library handles provider-s
 ```csharp
 try
 {
-    await using var handle = await ctx.AcquireDistributedLockAsync(
+    await using var handle = await ctx.Database.AcquireDistributedLockAsync(
         "report:daily", TimeSpan.FromSeconds(5));
 }
 catch (LockTimeoutException)

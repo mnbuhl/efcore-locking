@@ -46,7 +46,7 @@ var job = await db.Jobs
 After all workers finish, a maintenance sweep requeues any jobs stuck in `Processing` for more than 5 minutes:
 
 ```csharp
-await using var sweepHandle = await db.TryAcquireDistributedLockAsync("jobs:maintenance-sweep");
+await using var sweepHandle = await db.Database.TryAcquireDistributedLockAsync("jobs:maintenance-sweep");
 if (sweepHandle is null)
 {
     Console.WriteLine("Another process is already running the sweep — skipping.");

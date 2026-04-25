@@ -45,7 +45,7 @@ The library is split into a provider-agnostic core and three database provider p
 
 ### Distributed advisory locks flow
 
-1. `DbContextDistributedLockExtensions.AcquireDistributedLockAsync()` resolves `IAdvisoryLockProvider` from `ILockingProvider.AdvisoryLockProvider`, opens the connection if needed, calls `DistributedLockRegistry.RegisterOrThrow` to prevent double-acquisition on the same context+connection, then delegates to the provider.
+1. `DatabaseFacadeDistributedLockExtensions.AcquireDistributedLockAsync()` (called as `ctx.Database.AcquireDistributedLockAsync(...)`) resolves `IAdvisoryLockProvider` from `ILockingProvider.AdvisoryLockProvider`, opens the connection if needed, calls `DistributedLockRegistry.RegisterOrThrow` to prevent double-acquisition on the same context+connection, then delegates to the provider.
 2. Each provider sends native advisory lock SQL (`pg_advisory_lock`, MySQL `GET_LOCK`, SQL Server `sp_getapplock`).
 3. The returned `IDistributedLockHandle` releases the lock on dispose via a captured callback; `DistributedLockCleanupInterceptor` performs best-effort cleanup if handles are not disposed before connection close.
 

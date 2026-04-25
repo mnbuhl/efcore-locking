@@ -60,12 +60,11 @@ jobs:
           --logger "console;verbosity=normal"
 
   test-mysql:
-    # Pomelo.EntityFrameworkCore.MySql has no net10.0 build yet; MySql tests cap at net9.0.
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        dotnet: ['8.0.x', '9.0.x']
+        dotnet: ['8.0.x', '9.0.x', '10.0.x']
 
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +81,7 @@ jobs:
         run: >
           dotnet test tests/EntityFrameworkCore.Locking.MySql.Tests
           --no-restore --configuration Release
-          --framework net${{ matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
+          --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
           --logger "console;verbosity=normal"
 
   test-sqlserver:

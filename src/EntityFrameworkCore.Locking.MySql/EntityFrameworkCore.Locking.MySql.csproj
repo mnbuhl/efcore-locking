@@ -3,8 +3,7 @@
     <PackageId>EntityFrameworkCore.Locking.MySql</PackageId>
     <Description>MySQL (Pomelo) provider for EntityFrameworkCore.Locking.</Description>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
-    <!-- Pomelo.EntityFrameworkCore.MySql has no net10.0 build yet; cap at net9.0. -->
-    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>

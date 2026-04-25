@@ -204,9 +204,9 @@ public static class DatabaseFacadeDistributedLockExtensions
     private static void ValidateKey(string key)
     {
         if (string.IsNullOrEmpty(key))
-            throw new ArgumentException("Lock key must not be null or empty.", nameof(key));
+            throw new LockingConfigurationException("Lock key must not be null or empty.");
         if (key.Length > 255)
-            throw new ArgumentException("Lock key must not exceed 255 characters.", nameof(key));
+            throw new LockingConfigurationException("Lock key must not exceed 255 characters.");
     }
 
     private static DbContext GetContext(DatabaseFacade database) =>

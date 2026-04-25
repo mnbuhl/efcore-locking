@@ -31,25 +31,31 @@ public class DistributedLockUnitTests
     // --- Key validation ---
 
     [Fact]
-    public async Task AcquireDistributedLockAsync_NullKey_ThrowsArgumentException()
+    public async Task AcquireDistributedLockAsync_NullKey_ThrowsLockingConfigurationException()
     {
         await using var ctx = CreateContext();
-        await Assert.ThrowsAsync<ArgumentException>(() => ctx.Database.AcquireDistributedLockAsync(null!));
+        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
+            ctx.Database.AcquireDistributedLockAsync(null!)
+        );
     }
 
     [Fact]
-    public async Task AcquireDistributedLockAsync_EmptyKey_ThrowsArgumentException()
+    public async Task AcquireDistributedLockAsync_EmptyKey_ThrowsLockingConfigurationException()
     {
         await using var ctx = CreateContext();
-        await Assert.ThrowsAsync<ArgumentException>(() => ctx.Database.AcquireDistributedLockAsync(""));
+        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
+            ctx.Database.AcquireDistributedLockAsync("")
+        );
     }
 
     [Fact]
-    public async Task AcquireDistributedLockAsync_KeyTooLong_ThrowsArgumentException()
+    public async Task AcquireDistributedLockAsync_KeyTooLong_ThrowsLockingConfigurationException()
     {
         await using var ctx = CreateContext();
         var longKey = new string('a', 256);
-        await Assert.ThrowsAsync<ArgumentException>(() => ctx.Database.AcquireDistributedLockAsync(longKey));
+        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
+            ctx.Database.AcquireDistributedLockAsync(longKey)
+        );
     }
 
     [Fact]

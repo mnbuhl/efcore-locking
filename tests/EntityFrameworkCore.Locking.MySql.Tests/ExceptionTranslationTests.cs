@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
-using EntityFrameworkCore.Locking.MySql;
 using MySqlConnector;
 using Xunit;
 

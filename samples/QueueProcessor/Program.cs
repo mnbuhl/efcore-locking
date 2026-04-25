@@ -13,6 +13,11 @@ var optionsBuilder = new DbContextOptionsBuilder<JobDbContext>().UseNpgsql(conne
 
 await using (var db = new JobDbContext(optionsBuilder.Options))
 {
+    await db.Database.EnsureDeletedAsync();
+}
+
+await using (var db = new JobDbContext(optionsBuilder.Options))
+{
     await db.Database.EnsureCreatedAsync();
 
     // Seed 20 jobs if the table is empty

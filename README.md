@@ -197,11 +197,6 @@ catch (DeadlockException)
 {
     // Deadlock detected — retry the transaction
 }
-catch (LockAlreadyHeldException ex)
-{
-    // Distributed lock: same key acquired twice on the same connection.
-    // ex.Key contains the key name.
-}
 catch (LockingConfigurationException)
 {
     // Programmer error: missing transaction, unsupported query shape,

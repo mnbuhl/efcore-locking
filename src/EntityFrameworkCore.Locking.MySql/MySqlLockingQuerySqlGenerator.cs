@@ -29,7 +29,8 @@ internal sealed class MySqlLockingQuerySqlGenerator : MySqlQuerySqlGenerator
     {
         var result = base.VisitSelect(selectExpression);
 
-        var lockTag = selectExpression.Tags.FirstOrDefault(t =>
+        // LastOrDefault: TagWith appends in call order, so the last locking tag is the most recent.
+        var lockTag = selectExpression.Tags.LastOrDefault(t =>
             t.StartsWith(LockTagConstants.Prefix, StringComparison.Ordinal)
         );
 

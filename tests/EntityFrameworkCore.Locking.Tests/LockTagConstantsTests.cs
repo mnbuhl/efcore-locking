@@ -32,6 +32,10 @@ public class LockTagConstantsTests
     [InlineData("__efcore_locking:ForUpdate")]
     [InlineData("__efcore_locking:ForUpdate:Wait")]
     [InlineData("__efcore_locking:InvalidMode:Wait:")]
+    [InlineData("__efcore_locking:ForUpdate:Wait:NaN")]
+    [InlineData("__efcore_locking:ForUpdate:Wait:Infinity")]
+    [InlineData("__efcore_locking:ForUpdate:Wait:-1")]
+    [InlineData("__efcore_locking:ForUpdate:Wait:notanumber")]
     public void TryParse_InvalidTag_ReturnsFalse(string tag)
     {
         var result = LockTagConstants.TryParse(tag, out var options);

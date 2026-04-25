@@ -29,16 +29,22 @@ internal static class LockTagConstants
             return false;
 
         TimeSpan? timeout = null;
-        if (
-            parts[2].Length > 0
-            && double.TryParse(
-                parts[2],
-                System.Globalization.NumberStyles.Any,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var ms
+        if (parts[2].Length > 0)
+        {
+            if (
+                !double.TryParse(
+                    parts[2],
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var ms
+                )
+                || !double.IsFinite(ms)
+                || ms < 0
             )
-        )
+                return false;
+
             timeout = TimeSpan.FromMilliseconds(ms);
+        }
 
         options = new LockOptions
         {

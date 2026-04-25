@@ -9,9 +9,10 @@ public static class QueryableLockingExtensions
     /// Acquires an exclusive row-level lock (FOR UPDATE) on the selected rows.
     /// Requires an active transaction on the DbContext.
     /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown at query execution time if no ambient transaction exists,
-    /// or if the query shape is incompatible with row locking.
+    /// <exception cref="Exceptions.LockingConfigurationException">
+    /// Thrown at query execution time if no ambient transaction exists, or if the query shape is
+    /// incompatible with row locking: DISTINCT, GROUP BY, set operations (Union/Except/Intersect),
+    /// or split queries (AsSplitQuery).
     /// </exception>
     public static IQueryable<T> ForUpdate<T>(
         this IQueryable<T> source,
@@ -34,9 +35,10 @@ public static class QueryableLockingExtensions
     /// Acquires a shared row-level lock (FOR SHARE) on the selected rows.
     /// Requires an active transaction on the DbContext.
     /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown at query execution time if no ambient transaction exists,
-    /// or if the query shape is incompatible with row locking.
+    /// <exception cref="Exceptions.LockingConfigurationException">
+    /// Thrown at query execution time if no ambient transaction exists, or if the query shape is
+    /// incompatible with row locking: DISTINCT, GROUP BY, set operations (Union/Except/Intersect),
+    /// or split queries (AsSplitQuery).
     /// </exception>
     public static IQueryable<T> ForShare<T>(
         this IQueryable<T> source,

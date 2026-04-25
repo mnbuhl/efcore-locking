@@ -23,6 +23,13 @@ public static class DatabaseFacadeDistributedLockExtensions
     /// <param name="key">Lock key (1–255 characters).</param>
     /// <param name="timeout">Maximum time to wait. Throws <see cref="LockTimeoutException"/> if exceeded. Null = wait indefinitely.</param>
     /// <param name="ct">Cancellation token. Cancellation is best-effort (driver-dependent).</param>
+    /// <exception cref="LockingConfigurationException">
+    /// Thrown if the key is null, empty, or longer than 255 characters; if no locking provider is
+    /// registered; or if the provider does not support distributed locks.
+    /// </exception>
+    /// <exception cref="LockTimeoutException">
+    /// Thrown if <paramref name="timeout"/> is exceeded before the lock can be acquired.
+    /// </exception>
     public static async Task<IDistributedLockHandle> AcquireDistributedLockAsync(
         this DatabaseFacade database,
         string key,
@@ -56,6 +63,11 @@ public static class DatabaseFacadeDistributedLockExtensions
     /// Attempts to acquire a distributed lock without blocking.
     /// Returns null immediately if the lock is held by another connection.
     /// </summary>
+    /// <exception cref="LockingConfigurationException">
+    /// Thrown if the key is null, empty, or longer than 255 characters; if no locking provider is
+    /// registered; or if the provider does not support distributed locks.
+    /// </exception>
+    /// <returns>A lock handle, or <c>null</c> if the lock is currently held by another connection.</returns>
     public static async Task<IDistributedLockHandle?> TryAcquireDistributedLockAsync(
         this DatabaseFacade database,
         string key,
@@ -93,6 +105,12 @@ public static class DatabaseFacadeDistributedLockExtensions
     }
 
     /// <summary>Acquires a distributed lock synchronously.</summary>
+    /// <exception cref="LockingConfigurationException">
+    /// Thrown if the key is invalid, no provider is registered, or the provider does not support distributed locks.
+    /// </exception>
+    /// <exception cref="LockTimeoutException">
+    /// Thrown if <paramref name="timeout"/> is exceeded before the lock can be acquired.
+    /// </exception>
     public static IDistributedLockHandle AcquireDistributedLock(
         this DatabaseFacade database,
         string key,
@@ -122,6 +140,10 @@ public static class DatabaseFacadeDistributedLockExtensions
     }
 
     /// <summary>Attempts to acquire a distributed lock synchronously. Returns null if contested.</summary>
+    /// <exception cref="LockingConfigurationException">
+    /// Thrown if the key is invalid, no provider is registered, or the provider does not support distributed locks.
+    /// </exception>
+    /// <returns>A lock handle, or <c>null</c> if the lock is currently held by another connection.</returns>
     public static IDistributedLockHandle? TryAcquireDistributedLock(this DatabaseFacade database, string key)
     {
         var (ctx, provider, connection, openedByMe) = PrepareSync(database, key);

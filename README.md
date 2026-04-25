@@ -233,9 +233,23 @@ MySQL's `innodb_lock_wait_timeout` is in whole seconds, so sub-second timeouts a
 
 ## Unsupported query shapes
 
-`UNION`, `EXCEPT`, `INTERSECT` combined with locking throw `LockingConfigurationException` at query execution time. Lock individual queries before combining results.
+The following query shapes throw `LockingConfigurationException` at execution time:
 
-`AsSplitQuery()` combined with locking throws `LockingConfigurationException` — use regular `Include()` instead. On PostgreSQL, `FOR UPDATE OF` is emitted automatically to handle the outer join.
+- `UNION` / `EXCEPT` / `INTERSECT` — lock individual queries before combining results
+- `AsSplitQuery()` — use regular `Include()` instead (PostgreSQL emits `FOR UPDATE OF` automatically for outer joins)
+- `Distinct()` — not compatible with row-level locking on any supported database
+- `GroupBy(...)` — not compatible with row-level locking on any supported database
+
+## Limitations
+
+The following scenarios are not detected at build or execution time:
+
+| Scenario | Behaviour | Notes |
+|---|---|---|
+| `FromSqlRaw` / `FromSqlInterpolated` + `ForUpdate()` | Lock clause appended to wrapping `SELECT` — may work or fail depending on user SQL shape | Test your specific query |
+| `EF.CompileAsyncQuery` + `ForUpdate()` | Lock clause emitted correctly; pre-statement timeout SQL not injected | Architectural constraint of EF Core compiled queries |
+| `ExecuteUpdate` / `ExecuteDelete` / `Database.ExecuteSqlRaw` | Locking has no effect — these bypass the query SQL generator | Use `ForUpdate()` only with `IQueryable<T>` |
+| SQL Server nested subqueries | Table hints applied to all `TableExpression` nodes in the locking SELECT, including correlated subqueries | SQL Server requires per-table hints; this is correct behaviour |
 
 ## Supported database versions
 

@@ -17,7 +17,7 @@ public class LockTagConstantsTests
         var result = LockTagConstants.TryParse(tag, out var options);
         result.Should().BeTrue();
         options.Should().NotBeNull();
-        options!.Mode.Should().Be(mode);
+        options.Mode.Should().Be(mode);
         options.Behavior.Should().Be(behavior);
         if (timeoutMs.HasValue)
             options.Timeout.Should().Be(TimeSpan.FromMilliseconds(timeoutMs.Value));

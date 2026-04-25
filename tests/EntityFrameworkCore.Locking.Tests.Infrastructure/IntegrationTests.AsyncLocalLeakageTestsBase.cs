@@ -91,7 +91,7 @@ public abstract partial class IntegrationTestsBase
             await using var tx = await ctx.Database.BeginTransactionAsync();
 
             // First: Wait behavior
-            await ctx.Products.Where(p => p.Id == id).ForUpdate(LockBehavior.Wait).FirstOrDefaultAsync();
+            await ctx.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
             var firstIdx = cap.Commands.Count - 1;
 
             // Second: NoWait behavior

@@ -127,7 +127,7 @@ public class DistributedLockUnitTests
         await using var ctx = CreateContext();
         var handle = await ctx.Database.TryAcquireDistributedLockAsync("free");
         handle.Should().NotBeNull();
-        await handle!.DisposeAsync();
+        await handle.DisposeAsync();
     }
 
     // --- Factory ---
@@ -151,13 +151,8 @@ public class DistributedLockUnitTests
 
 internal sealed class FakeDbContext : DbContext
 {
-    private readonly FakeDbConnection _connection;
-
     public FakeDbContext(DbContextOptions<FakeDbContext> options, FakeDbConnection connection)
-        : base(options)
-    {
-        _connection = connection;
-    }
+        : base(options) { }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 }
@@ -196,7 +191,7 @@ internal sealed class FakeLockingProvider : ILockingProvider
     public ILockSqlGenerator RowLockGenerator { get; } = new FakeLockSqlGenerator();
     public string ProviderName => "Fake";
     public IExceptionTranslator ExceptionTranslator { get; } = new FakeExceptionTranslator();
-    public IAdvisoryLockProvider? AdvisoryLockProvider => _advisory;
+    public IAdvisoryLockProvider AdvisoryLockProvider => _advisory;
 }
 
 internal sealed class FakeLockSqlGenerator : ILockSqlGenerator

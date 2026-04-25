@@ -23,7 +23,7 @@ public abstract partial class IntegrationTestsBase
             .FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        product!.Category.Name.Should().Be("Nav");
+        product.Category.Name.Should().Be("Nav");
         await tx.RollbackAsync();
     }
 
@@ -51,7 +51,7 @@ public abstract partial class IntegrationTestsBase
             .FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        product!.OrderLines.Should().HaveCount(3);
+        product.OrderLines.Should().HaveCount(3);
         await tx.RollbackAsync();
     }
 
@@ -79,7 +79,7 @@ public abstract partial class IntegrationTestsBase
             .FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        product!.Category.Name.Should().Be("Multi");
+        product.Category.Name.Should().Be("Multi");
         product.OrderLines.Should().HaveCount(1);
         await tx.RollbackAsync();
     }
@@ -181,7 +181,7 @@ public abstract partial class IntegrationTestsBase
         var product = await ctx.Products.AsNoTracking().Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        ctx.Entry(product!).State.Should().Be(EntityState.Detached);
+        ctx.Entry(product).State.Should().Be(EntityState.Detached);
         await tx.RollbackAsync();
     }
 
@@ -194,7 +194,7 @@ public abstract partial class IntegrationTestsBase
         var (_, id) = await SeedAsync(ctx);
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
-        var ids = new[] { id };
+        var ids = new List<int> { id };
         var products = await ctx.Products.Where(p => ids.Contains(p.Id)).ForUpdate().ToListAsync();
 
         products.Should().HaveCount(1);
@@ -243,7 +243,7 @@ public abstract partial class IntegrationTestsBase
             .FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        product!.Id.Should().Be(id);
+        product.Id.Should().Be(id);
         await tx.RollbackAsync();
     }
 
@@ -304,7 +304,7 @@ public abstract partial class IntegrationTestsBase
     public async Task ForUpdate_WithInnerJoinQuerySyntax_WhenCondition_ShouldReturnLockedRows()
     {
         await using var ctx = CreateContext();
-        var (catId, id) = await SeedAsync(ctx, categoryName: "JoinTest");
+        var (_, id) = await SeedAsync(ctx, categoryName: "JoinTest");
 
         await using var tx = await ctx.Database.BeginTransactionAsync();
 

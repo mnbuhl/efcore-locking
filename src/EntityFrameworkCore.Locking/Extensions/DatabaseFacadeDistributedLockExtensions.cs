@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
+// ReSharper disable once CheckNamespace
 namespace EntityFrameworkCore.Locking;
 
 /// <summary>

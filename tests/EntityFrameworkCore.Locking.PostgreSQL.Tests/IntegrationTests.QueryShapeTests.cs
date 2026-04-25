@@ -33,7 +33,7 @@ public partial class IntegrationTests
             .FirstOrDefaultAsync();
 
         category.Should().NotBeNull();
-        category!.Products.Should().HaveCount(2);
+        category.Products.Should().HaveCount(2);
         await tx.RollbackAsync();
     }
 

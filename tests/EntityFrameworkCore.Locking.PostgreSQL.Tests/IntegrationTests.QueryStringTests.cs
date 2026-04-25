@@ -143,7 +143,7 @@ public partial class IntegrationTests
     {
         await using var ctx = CreateContext();
         await ctx.Database.EnsureCreatedAsync();
-        var (capture, captureCtx) = (
+        var (_, captureCtx) = (
             new EntityFrameworkCore.Locking.Tests.Infrastructure.SqlCapture(),
             CreateContextWithCapture()
         );

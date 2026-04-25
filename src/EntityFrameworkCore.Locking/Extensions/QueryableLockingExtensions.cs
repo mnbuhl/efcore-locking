@@ -1,6 +1,7 @@
 using EntityFrameworkCore.Locking.Internal;
 using Microsoft.EntityFrameworkCore;
 
+// ReSharper disable once CheckNamespace
 namespace EntityFrameworkCore.Locking;
 
 public static class QueryableLockingExtensions

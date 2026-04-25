@@ -56,7 +56,7 @@ public abstract partial class IntegrationTestsBase : IAsyncLifetime
         var product = await ctx.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        product!.Id.Should().Be(id);
+        product.Id.Should().Be(id);
         await tx.RollbackAsync();
     }
 

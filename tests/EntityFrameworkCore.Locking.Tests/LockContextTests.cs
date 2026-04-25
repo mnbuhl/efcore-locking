@@ -27,10 +27,9 @@ public class LockContextTests
     {
         LockContext.Current = new LockOptions { Mode = LockMode.ForUpdate };
 
-        LockOptions? otherContextValue = null;
         await Task.Run(() =>
         {
-            otherContextValue = LockContext.Current;
+            _ = LockContext.Current;
         });
 
         // AsyncLocal flows DOWN into child tasks but changes in child don't affect parent

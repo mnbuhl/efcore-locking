@@ -19,7 +19,7 @@ public partial class IntegrationTests
         var product = await ctx.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        product!.Name.Should().Be("Share Me");
+        product.Name.Should().Be("Share Me");
         await tx.RollbackAsync();
     }
 

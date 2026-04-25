@@ -25,7 +25,32 @@ internal static class UnsafeShapeDetector
         if (selectExpression.IsDistinct)
             throw new LockingConfigurationException("ForUpdate/ForShare is not compatible with DISTINCT queries.");
 
+        // Aggregate terminal ops (CountAsync, SumAsync, MaxAsync, MinAsync, LongCountAsync) produce
+        // a scalar aggregate function in the outer projection. Row-level locking a scalar is meaningless.
+        // AnyAsync is safe: EF Core translates it to a scalar subquery with no outer aggregate function.
+        if (
+            selectExpression.Projection.Any(p =>
+                p.Expression is Microsoft.EntityFrameworkCore.Query.SqlExpressions.SqlFunctionExpression func
+                && _aggregateFunctionNames.Contains(func.Name)
+            )
+        )
+            throw new LockingConfigurationException(
+                "ForUpdate/ForShare is not compatible with aggregate queries (CountAsync, SumAsync, MaxAsync, MinAsync, LongCountAsync)."
+            );
+
         // GroupBy is not checked: ForUpdate<T> requires T : class, so EF Core always translates
         // GroupBy results into correlated subqueries — GroupBy never appears on the outer SELECT.
     }
+
+    private static readonly System.Collections.Generic.HashSet<string> _aggregateFunctionNames = new(
+        System.StringComparer.OrdinalIgnoreCase
+    )
+    {
+        "COUNT",
+        "COUNT_BIG",
+        "SUM",
+        "MAX",
+        "MIN",
+        "AVG",
+    };
 }

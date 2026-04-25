@@ -277,4 +277,118 @@ public abstract partial class IntegrationTestsBase
         await act.Should().ThrowAsync<LockingConfigurationException>();
         await tx.RollbackAsync();
     }
+
+    // --- Set operations: Concat ---
+
+    [Fact]
+    public async Task ForUpdate_WhenConcatQuery_ShouldThrowLockingConfigurationException()
+    {
+        await using var ctx = CreateContext();
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+
+        // Concat → UNION ALL → SetOperationBase → must be rejected
+        Func<Task> act = async () =>
+            await ctx
+                .Products.Where(p => p.Id == 1)
+                .Concat(ctx.Products.Where(p => p.Id == 2))
+                .ForUpdate()
+                .ToListAsync();
+
+        await act.Should().ThrowAsync<LockingConfigurationException>();
+        await tx.RollbackAsync();
+    }
+
+    // --- Explicit join shapes ---
+
+    [Fact]
+    public async Task ForUpdate_WithInnerJoinQuerySyntax_WhenCondition_ShouldReturnLockedRows()
+    {
+        await using var ctx = CreateContext();
+        var (catId, id) = await SeedAsync(ctx, categoryName: "JoinTest");
+
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+
+        var products = await (
+            from p in ctx.Products
+            join c in ctx.Categories on p.CategoryId equals c.Id
+            where c.Name == "JoinTest"
+            select p
+        )
+            .ForUpdate()
+            .ToListAsync();
+
+        products.Should().HaveCount(1);
+        products[0].Id.Should().Be(id);
+        await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForUpdate_WithSelectMany_WhenCondition_ShouldReturnLockedRows()
+    {
+        await using var ctx = CreateContext();
+        var (_, id) = await SeedAsync(ctx);
+        ctx.OrderLines.Add(
+            new OrderLine
+            {
+                ProductId = id,
+                Quantity = 1,
+                UnitPrice = 1m,
+            }
+        );
+        await ctx.SaveChangesAsync();
+
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+
+        var products = await ctx
+            .Products.SelectMany(p => ctx.OrderLines.Where(ol => ol.ProductId == p.Id), (p, _) => p)
+            .Where(p => p.Id == id)
+            .ForUpdate()
+            .ToListAsync();
+
+        products.Should().HaveCount(1);
+        products[0].Id.Should().Be(id);
+        await tx.RollbackAsync();
+    }
+
+    // --- Tags interaction ---
+
+    [Fact]
+    public async Task ForUpdate_WhenTagWithBeforeLock_ShouldPreserveUserTagInExecutedSql()
+    {
+        var (ctx, cap) = CreateContextWithCapture();
+        await using (ctx)
+        {
+            var (_, id) = await SeedAsync(ctx);
+
+            await using var tx = await ctx.Database.BeginTransactionAsync();
+
+            await ctx.Products.Where(p => p.Id == id).TagWith("user-tag-before").ForUpdate().FirstOrDefaultAsync();
+
+            cap.LastCommand.Should().NotBeNull();
+            cap.LastCommand!.Should().Contain("user-tag-before");
+            cap.LastCommand.Should().Contain("__efcore_locking");
+
+            await tx.RollbackAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ForUpdate_WhenTagWithAfterLock_ShouldPreserveUserTagInExecutedSql()
+    {
+        var (ctx, cap) = CreateContextWithCapture();
+        await using (ctx)
+        {
+            var (_, id) = await SeedAsync(ctx);
+
+            await using var tx = await ctx.Database.BeginTransactionAsync();
+
+            await ctx.Products.Where(p => p.Id == id).ForUpdate().TagWith("user-tag-after").FirstOrDefaultAsync();
+
+            cap.LastCommand.Should().NotBeNull();
+            cap.LastCommand!.Should().Contain("user-tag-after");
+            cap.LastCommand.Should().Contain("__efcore_locking");
+
+            await tx.RollbackAsync();
+        }
+    }
 }

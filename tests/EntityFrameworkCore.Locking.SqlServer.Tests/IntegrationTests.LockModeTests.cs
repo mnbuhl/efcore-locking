@@ -60,4 +60,30 @@ public partial class IntegrationTests
         row.Should().NotBeNull();
         await tx.RollbackAsync();
     }
+
+    [Fact]
+    public async Task ForUpdate_WhenOrderByTakeLockBehaviors_WhenInsideTransaction_ShouldEmitCorrectSql()
+    {
+        var (ctx, cap) = CreateContextWithCapture();
+        await using (ctx)
+        {
+            var (catId, _) = await SeedAsync(ctx, categoryName: "SqlCheck");
+
+            await using var tx = await ctx.Database.BeginTransactionAsync();
+
+            var result = await ctx
+                .Products.Where(p => p.CategoryId == catId)
+                .OrderBy(p => p.Id)
+                .Take(1)
+                .ForUpdate(LockBehavior.NoWait)
+                .ToListAsync();
+
+            result.Should().HaveCount(1);
+            // SQL Server NoWait: SET LOCK_TIMEOUT 0 as pre-statement, UPDLOCK in FROM clause
+            cap.Commands.Should().Contain(c => c.Contains("SET LOCK_TIMEOUT 0"));
+            cap.LastCommand.Should().Contain("UPDLOCK");
+
+            await tx.RollbackAsync();
+        }
+    }
 }

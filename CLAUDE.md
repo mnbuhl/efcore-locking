@@ -74,7 +74,7 @@ Each of the four provider projects (`EntityFrameworkCore.Locking.PostgreSQL`, `.
 - PostgreSQL key hashing: advisory lock string keys are hashed via `XxHash32` combined with namespace prefix `0x45464C4B_00000000L` to produce a `bigint`.
 - SQL Server uses table hints (`WITH (UPDLOCK, ROWLOCK)`) injected into the `FROM` clause, not trailing clauses like PostgreSQL/MySQL.
 - Oracle has no row-level `FOR SHARE` — only `FOR UPDATE` variants. `ForShare()` throws `LockingConfigurationException`. `WAIT n` takes integer seconds; sub-second timeouts are rounded up to 1 second.
-- Oracle advisory locks use `DBMS_LOCK.ALLOCATE_UNIQUE` + `DBMS_LOCK.REQUEST` (session-scoped, `release_on_commit => FALSE`). Requires `GRANT EXECUTE ON DBMS_LOCK` to the app user; without the grant, ORA-06550 is translated to `LockingConfigurationException`.
+- Oracle advisory locks use the integer-id overload of `DBMS_LOCK.REQUEST`/`RELEASE` (session-scoped, `release_on_commit => FALSE`). The string key is hashed via `XxHash32` into the user id range `[0, 2^30-1]` with a namespace prefix. `DBMS_LOCK.ALLOCATE_UNIQUE` is intentionally avoided — it performs an implicit commit that would break transaction neutrality. Requires `GRANT EXECUTE ON DBMS_LOCK` to the app user; without the grant, ORA-06550 is translated to `LockingConfigurationException`.
 
 ### Build configuration
 

@@ -1,6 +1,6 @@
 using System.Data;
 using System.Data.Common;
-using System.Security.Cryptography;
+using System.IO.Hashing;
 using System.Text;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
@@ -10,9 +10,17 @@ using Microsoft.EntityFrameworkCore;
 namespace EntityFrameworkCore.Locking.Oracle;
 
 /// <summary>
-/// Oracle advisory lock provider using DBMS_LOCK.ALLOCATE_UNIQUE + DBMS_LOCK.REQUEST/RELEASE.
-/// Session-scoped (release_on_commit = FALSE) — lock survives transactions and is released on
-/// explicit RELEASE or session end.
+/// Oracle advisory lock provider using DBMS_LOCK.REQUEST / DBMS_LOCK.RELEASE with a numeric
+/// user lock id. Session-scoped (release_on_commit = FALSE) — the lock survives transactions
+/// and is released on explicit RELEASE or session end.
+///
+/// Why not DBMS_LOCK.ALLOCATE_UNIQUE? That procedure performs an implicit commit (it may
+/// insert into DBMS_LOCK_ALLOCATED), which breaks transaction neutrality: any pending DML on
+/// the caller's EF transaction would be committed prematurely and a later rollback would not
+/// undo those writes. We therefore use the integer-id overload of REQUEST/RELEASE, which does
+/// not commit. User lock ids are reserved for application use in the range [0, 1073741823];
+/// ids ≥ 1073741824 are reserved for Oracle. We hash the string key via XxHash32 into the
+/// user range with a namespace prefix to minimise cross-library collisions.
 ///
 /// Return codes from DBMS_LOCK.REQUEST / DBMS_LOCK.RELEASE:
 ///   0 = success
@@ -26,10 +34,6 @@ namespace EntityFrameworkCore.Locking.Oracle;
 ///   GRANT EXECUTE ON DBMS_LOCK TO &lt;user&gt;;
 /// Without this grant, calls surface as ORA-06550 and are translated to LockingConfigurationException.
 ///
-/// Key handling: DBMS_LOCK.ALLOCATE_UNIQUE limits lock names to 128 bytes. Keys over 64 UTF-8 bytes
-/// are hashed to "lock:" + hex(SHA256)[..58] = 64 chars total to stay safely under the limit.
-/// The "lock:" prefix is reserved — callers using raw keys should avoid that prefix.
-///
 /// Timeout granularity: DBMS_LOCK.REQUEST takes integer seconds; sub-second timeouts round up to 1 second.
 /// </summary>
 internal sealed class OracleAdvisoryLockProvider : IAdvisoryLockProvider
@@ -40,31 +44,31 @@ internal sealed class OracleAdvisoryLockProvider : IAdvisoryLockProvider
     // MAXWAIT sentinel (32767 seconds) — effectively "wait indefinitely" for DBMS_LOCK.REQUEST.
     private const int MaxWait = 32767;
 
-    private static string EncodeKey(string key)
+    // User lock id range is [0, 1073741823] = [0, 2^30 - 1]. Hash output is masked into this range.
+    private const int UserLockIdMax = 0x3FFFFFFF;
+
+    // Namespace prefix "EFLK" (0x45464C4B) mixed into the hash input so our ids are unlikely to
+    // collide with other libraries using DBMS_LOCK.REQUEST against the same instance.
+    private const string NamespacePrefix = "EFLK:";
+
+    private static int ComputeLockId(string key)
     {
-        var bytes = Encoding.UTF8.GetBytes(key);
-        if (bytes.Length <= 64)
-            return key;
-        var hash = SHA256.HashData(bytes);
-        return "lock:" + Convert.ToHexString(hash)[..58];
+        var bytes = Encoding.UTF8.GetBytes(NamespacePrefix + key);
+        var hash = XxHash32.HashToUInt32(bytes);
+        return (int)(hash & UserLockIdMax);
     }
 
+    // Parameter-only PL/SQL — no ALLOCATE_UNIQUE, no implicit commit. Uses the integer-id
+    // overload of DBMS_LOCK.REQUEST/RELEASE.
     private const string AcquirePlSql =
-        "DECLARE lh VARCHAR2(128); rc INTEGER;\n"
+        "DECLARE rc INTEGER;\n"
         + "BEGIN\n"
-        + "  DBMS_LOCK.ALLOCATE_UNIQUE(lockname => :name, lockhandle => lh);\n"
-        + "  rc := DBMS_LOCK.REQUEST(lockhandle => lh, lockmode => :mode, timeout => :timeout, release_on_commit => FALSE);\n"
-        + "  :handle := lh;\n"
+        + "  rc := DBMS_LOCK.REQUEST(id => :id, lockmode => :mode, timeout => :timeout, release_on_commit => FALSE);\n"
         + "  :rc := rc;\n"
         + "END;";
 
     private const string ReleasePlSql =
-        "DECLARE lh VARCHAR2(128); rc INTEGER;\n"
-        + "BEGIN\n"
-        + "  DBMS_LOCK.ALLOCATE_UNIQUE(lockname => :name, lockhandle => lh);\n"
-        + "  rc := DBMS_LOCK.RELEASE(lockhandle => lh);\n"
-        + "  :rc := rc;\n"
-        + "END;";
+        "DECLARE rc INTEGER;\n" + "BEGIN\n" + "  rc := DBMS_LOCK.RELEASE(id => :id);\n" + "  :rc := rc;\n" + "END;";
 
     public async Task<IDistributedLockHandle> AcquireAsync(
         DbContext context,
@@ -74,16 +78,16 @@ internal sealed class OracleAdvisoryLockProvider : IAdvisoryLockProvider
         CancellationToken ct
     )
     {
-        var encodedKey = EncodeKey(key);
+        var lockId = ComputeLockId(key);
         var timeoutSeconds = ToTimeoutSeconds(timeout);
 
-        await using var cmd = BuildAcquireCommand(connection, encodedKey, timeoutSeconds);
+        await using var cmd = BuildAcquireCommand(connection, lockId, timeoutSeconds);
         await using var reg = ct.Register(static state => ((DbCommand)state!).Cancel(), cmd);
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
 
         var rc = GetReturnCode(cmd);
         MapReturnCode(rc, key, ct);
-        return BuildHandle(context, connection, key, encodedKey);
+        return BuildHandle(context, connection, key, lockId);
     }
 
     public async Task<IDistributedLockHandle?> TryAcquireAsync(
@@ -93,10 +97,10 @@ internal sealed class OracleAdvisoryLockProvider : IAdvisoryLockProvider
         CancellationToken ct
     )
     {
-        var encodedKey = EncodeKey(key);
+        var lockId = ComputeLockId(key);
 
         // DBMS_LOCK.REQUEST with timeout=0 is the canonical try-acquire form.
-        await using var cmd = BuildAcquireCommand(connection, encodedKey, timeoutSeconds: 0);
+        await using var cmd = BuildAcquireCommand(connection, lockId, timeoutSeconds: 0);
         await using var reg = ct.Register(static state => ((DbCommand)state!).Cancel(), cmd);
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
 
@@ -104,54 +108,53 @@ internal sealed class OracleAdvisoryLockProvider : IAdvisoryLockProvider
         if (rc == 1)
             return null; // timeout — lock held by another session
         MapReturnCode(rc, key, ct);
-        return BuildHandle(context, connection, key, encodedKey);
+        return BuildHandle(context, connection, key, lockId);
     }
 
     public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout)
     {
-        var encodedKey = EncodeKey(key);
+        var lockId = ComputeLockId(key);
         var timeoutSeconds = ToTimeoutSeconds(timeout);
 
-        using var cmd = BuildAcquireCommand(connection, encodedKey, timeoutSeconds);
+        using var cmd = BuildAcquireCommand(connection, lockId, timeoutSeconds);
         cmd.ExecuteNonQuery();
 
         var rc = GetReturnCode(cmd);
         MapReturnCode(rc, key, ct: default);
-        return BuildHandle(context, connection, key, encodedKey);
+        return BuildHandle(context, connection, key, lockId);
     }
 
     public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
     {
-        var encodedKey = EncodeKey(key);
+        var lockId = ComputeLockId(key);
 
-        using var cmd = BuildAcquireCommand(connection, encodedKey, timeoutSeconds: 0);
+        using var cmd = BuildAcquireCommand(connection, lockId, timeoutSeconds: 0);
         cmd.ExecuteNonQuery();
 
         var rc = GetReturnCode(cmd);
         if (rc == 1)
             return null;
         MapReturnCode(rc, key, ct: default);
-        return BuildHandle(context, connection, key, encodedKey);
+        return BuildHandle(context, connection, key, lockId);
     }
 
-    private static DbCommand BuildAcquireCommand(DbConnection connection, string encodedKey, int timeoutSeconds)
+    private static DbCommand BuildAcquireCommand(DbConnection connection, int lockId, int timeoutSeconds)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandText = AcquirePlSql;
-        AddParam(cmd, "name", DbType.String, encodedKey);
+        AddParam(cmd, "id", DbType.Int32, lockId);
         AddParam(cmd, "mode", DbType.Int32, ExclusiveMode);
         AddParam(cmd, "timeout", DbType.Int32, timeoutSeconds);
-        AddOutParam(cmd, "handle", DbType.String, size: 128);
-        AddOutParam(cmd, "rc", DbType.Int32, size: 0);
+        AddOutParam(cmd, "rc", DbType.Int32);
         return cmd;
     }
 
-    private static DbCommand BuildReleaseCommand(DbConnection connection, string encodedKey)
+    private static DbCommand BuildReleaseCommand(DbConnection connection, int lockId)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandText = ReleasePlSql;
-        AddParam(cmd, "name", DbType.String, encodedKey);
-        AddOutParam(cmd, "rc", DbType.Int32, size: 0);
+        AddParam(cmd, "id", DbType.Int32, lockId);
+        AddOutParam(cmd, "rc", DbType.Int32);
         return cmd;
     }
 
@@ -195,20 +198,20 @@ internal sealed class OracleAdvisoryLockProvider : IAdvisoryLockProvider
         DbContext context,
         DbConnection connection,
         string key,
-        string encodedKey
+        int lockId
     )
     {
         async Task ReleaseAsync(CancellationToken ct)
         {
             DistributedLockRegistry.Unregister(context, connection, key);
-            await using var cmd = BuildReleaseCommand(connection, encodedKey);
+            await using var cmd = BuildReleaseCommand(connection, lockId);
             await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
         void ReleaseSync()
         {
             DistributedLockRegistry.Unregister(context, connection, key);
-            using var cmd = BuildReleaseCommand(connection, encodedKey);
+            using var cmd = BuildReleaseCommand(connection, lockId);
             cmd.ExecuteNonQuery();
         }
 
@@ -237,14 +240,12 @@ internal sealed class OracleAdvisoryLockProvider : IAdvisoryLockProvider
         cmd.Parameters.Add(p);
     }
 
-    private static void AddOutParam(DbCommand cmd, string name, DbType type, int size)
+    private static void AddOutParam(DbCommand cmd, string name, DbType type)
     {
         var p = cmd.CreateParameter();
         p.ParameterName = name;
         p.DbType = type;
         p.Direction = ParameterDirection.Output;
-        if (size > 0)
-            p.Size = size;
         cmd.Parameters.Add(p);
     }
 }

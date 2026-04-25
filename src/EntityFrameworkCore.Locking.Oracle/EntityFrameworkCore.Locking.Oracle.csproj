@@ -13,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\EntityFrameworkCore.Locking\EntityFrameworkCore.Locking.csproj" />
     <PackageReference Include="Oracle.EntityFrameworkCore" Version="[8.21.121, )" />
+    <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
   </ItemGroup>
 </Project>

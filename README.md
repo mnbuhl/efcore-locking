@@ -174,7 +174,7 @@ Keys are plain strings, up to **255 characters**. The library handles provider-s
 - **PostgreSQL** — hashed to a `bigint` via XxHash32 with a namespace prefix (`"EFLK"`); the hash is computed in-process so no extra round-trip is needed.
 - **MySQL** — passed as-is for keys ≤ 64 UTF-8 bytes; longer keys are SHA-256 hashed to `lock:<hex58>` (64 chars). The `lock:` prefix is reserved.
 - **SQL Server** — passed as-is (max 255 chars, enforced upstream).
-- **Oracle** — passed as-is for keys ≤ 64 UTF-8 bytes; longer keys are SHA-256 hashed to `lock:<hex58>` (64 chars) to stay under `DBMS_LOCK.ALLOCATE_UNIQUE`'s 128-byte name limit. The `lock:` prefix is reserved.
+- **Oracle** — hashed via `XxHash32` into the `DBMS_LOCK` user-id range `[0, 2^30-1]` with a namespace prefix. `DBMS_LOCK.ALLOCATE_UNIQUE` is deliberately avoided because it performs an implicit commit that would break transaction neutrality when the advisory lock is acquired inside an open EF transaction.
 
 ### Provider-specific behavior
 
@@ -184,7 +184,7 @@ Keys are plain strings, up to **255 characters**. The library handles provider-s
 | Timeout | `SET LOCAL lock_timeout` (ms) | `GET_LOCK(@key, seconds)` — rounded up to 1 s | `@LockTimeout` ms |
 | Cancellation | Driver-level (best-effort) | `KILL QUERY` side-channel | Attention signal |
 
-**Oracle** uses `DBMS_LOCK.ALLOCATE_UNIQUE` + `DBMS_LOCK.REQUEST` with `release_on_commit => FALSE` and timeout in integer seconds (rounded up to 1 s). Cancellation is best-effort via driver cancel. Requires `GRANT EXECUTE ON DBMS_LOCK` to the application user.
+**Oracle** uses the integer-id overload of `DBMS_LOCK.REQUEST` with `release_on_commit => FALSE` and timeout in integer seconds (rounded up to 1 s). Cancellation is best-effort via driver cancel. Requires `GRANT EXECUTE ON DBMS_LOCK` to the application user. **Transaction-neutral** — unlike `DBMS_LOCK.ALLOCATE_UNIQUE`, the id overload does not perform an implicit commit, so acquiring an advisory lock inside an open EF transaction does not commit pending DML.
 
 **MySQL timeout precision:** `GET_LOCK` timeout is in whole seconds. Sub-second timeouts are rounded up to 1 second.
 

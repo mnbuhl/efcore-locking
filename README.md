@@ -238,7 +238,6 @@ The following query shapes throw `LockingConfigurationException` at execution ti
 - `UNION` / `EXCEPT` / `INTERSECT` — lock individual queries before combining results
 - `AsSplitQuery()` — use regular `Include()` instead (PostgreSQL emits `FOR UPDATE OF` automatically for outer joins)
 - `Distinct()` — not compatible with row-level locking on any supported database
-- `GroupBy(...)` — not compatible with row-level locking on any supported database
 
 ## Limitations
 

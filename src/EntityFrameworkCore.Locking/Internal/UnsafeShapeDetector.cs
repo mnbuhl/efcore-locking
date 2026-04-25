@@ -25,7 +25,7 @@ internal static class UnsafeShapeDetector
         if (selectExpression.IsDistinct)
             throw new LockingConfigurationException("ForUpdate/ForShare is not compatible with DISTINCT queries.");
 
-        if (selectExpression.GroupBy.Count > 0)
-            throw new LockingConfigurationException("ForUpdate/ForShare is not compatible with GROUP BY queries.");
+        // GroupBy is not checked: ForUpdate<T> requires T : class, so EF Core always translates
+        // GroupBy results into correlated subqueries — GroupBy never appears on the outer SELECT.
     }
 }

@@ -22,11 +22,11 @@ public sealed class LockingOptionsExtension : IDbContextOptionsExtension
     public void ApplyServices(IServiceCollection services)
     {
         services.AddSingleton(_provider);
-        services.AddSingleton<ILockingProvider>(_provider);
+        services.AddSingleton(_provider);
         services.AddSingleton(_provider.RowLockGenerator);
-        services.AddSingleton<ILockSqlGenerator>(_provider.RowLockGenerator);
+        services.AddSingleton(_provider.RowLockGenerator);
         services.AddSingleton(_provider.ExceptionTranslator);
-        services.AddSingleton<IExceptionTranslator>(_provider.ExceptionTranslator);
+        services.AddSingleton(_provider.ExceptionTranslator);
     }
 
     public void Validate(IDbContextOptions options) { }

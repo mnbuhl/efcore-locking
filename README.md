@@ -233,9 +233,26 @@ MySQL's `innodb_lock_wait_timeout` is in whole seconds, so sub-second timeouts a
 
 ## Unsupported query shapes
 
-`UNION`, `EXCEPT`, `INTERSECT` combined with locking throw `LockingConfigurationException` at query execution time. Lock individual queries before combining results.
+The following query shapes throw `LockingConfigurationException` at execution time:
 
-`AsSplitQuery()` combined with locking throws `LockingConfigurationException` — use regular `Include()` instead. On PostgreSQL, `FOR UPDATE OF` is emitted automatically to handle the outer join.
+- `UNION` / `EXCEPT` / `INTERSECT` / `CONCAT` — lock individual queries before combining results
+- `AsSplitQuery()` — use regular `Include()` instead (PostgreSQL emits `FOR UPDATE OF` automatically for outer joins)
+- `Distinct()` — not compatible with row-level locking on any supported database
+- `CountAsync()` / `LongCountAsync()` / `SumAsync()` / `MaxAsync()` / `MinAsync()` — aggregate terminal operations are rejected because the result is a scalar, not a set of lockable rows; use `AnyAsync()` if you want to test for row existence with a lock
+
+Explicit joins (LINQ `join` syntax, `SelectMany`), correlated subqueries (`Any`, `Contains`), `Where`+`OrderBy`+`Take` pagination, and all `Include` / `ThenInclude` shapes work correctly across all providers.
+
+## Limitations
+
+The following scenarios are not detected at build or execution time:
+
+| Scenario | Behaviour | Notes |
+|---|---|---|
+| `FromSqlRaw` / `FromSql` + `ForUpdate()` | Lock clause appended to the wrapping `SELECT` — works in most cases; may fail if the raw SQL shape prevents composing a valid outer query | Test your specific query |
+| `EF.CompileAsyncQuery` + `ForUpdate()` | **Throws at compile time.** `ForUpdate` is not a translatable LINQ expression and cannot be used inside `EF.CompileAsyncQuery`. | Architectural constraint of EF Core compiled queries |
+| `ExecuteUpdate` / `ExecuteDelete` / `Database.ExecuteSqlRaw` | Locking has no effect — these bypass the query SQL generator | Use `ForUpdate()` only with `IQueryable<T>` |
+| SQL Server nested subqueries | Table hints (`WITH (UPDLOCK, HOLDLOCK, ROWLOCK)`) are applied to all `TableExpression` nodes in the locking `SELECT`, including correlated subqueries | SQL Server requires per-table hints; subquery coverage is correct and intentional |
+| GroupBy + ForUpdate | No compile-time error; the lock clause is applied to the outer `SELECT` that wraps EF Core's subquery translation, so the lock targets the grouping result rows rather than individual base-table rows — semantics may not be what you expect | |
 
 ## Supported database versions
 

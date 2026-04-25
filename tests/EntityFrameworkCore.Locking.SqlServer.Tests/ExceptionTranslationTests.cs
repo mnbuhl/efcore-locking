@@ -17,7 +17,7 @@ public class ExceptionTranslationTests
         var ex = CreateSqlException(1205);
         var result = _translator.Translate(ex);
         result.Should().BeOfType<DeadlockException>();
-        result!.InnerException.Should().BeSameAs(ex);
+        result.InnerException.Should().BeSameAs(ex);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class ExceptionTranslationTests
         var ex = CreateSqlException(1222);
         var result = _translator.Translate(ex);
         result.Should().BeOfType<LockTimeoutException>();
-        result!.InnerException.Should().BeSameAs(ex);
+        result.InnerException.Should().BeSameAs(ex);
     }
 
     [Fact]

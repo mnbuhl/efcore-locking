@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using EntityFrameworkCore.Locking.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -55,17 +56,17 @@ public abstract partial class IntegrationTestsBase : IAsyncLifetime
         var product = await ctx.Products.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync();
 
         product.Should().NotBeNull();
-        product!.Id.Should().Be(id);
+        product.Id.Should().Be(id);
         await tx.RollbackAsync();
     }
 
     [Fact]
-    public async Task ForUpdate_WithoutTransaction_ThrowsInvalidOperationException()
+    public async Task ForUpdate_WithoutTransaction_ThrowsLockingConfigurationException()
     {
         await using var ctx = CreateContext();
 
         Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1).ForUpdate().FirstOrDefaultAsync();
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<LockingConfigurationException>();
     }
 
     [Fact]

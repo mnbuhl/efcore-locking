@@ -11,7 +11,7 @@ namespace EntityFrameworkCore.Locking.PostgreSQL;
 
 /// <summary>
 /// Extends NpgsqlQuerySqlGenerator to append FOR UPDATE / FOR SHARE clauses
-/// when LockContext carries active lock options.
+/// when the query carries a locking tag.
 /// </summary>
 internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
 {
@@ -33,9 +33,12 @@ internal sealed class PostgresLockingQuerySqlGenerator : NpgsqlQuerySqlGenerator
     {
         var result = base.VisitSelect(selectExpression);
 
-        var lockOptions = LockContext.Current;
+        // LastOrDefault: TagWith appends in call order, so the last locking tag is the most recent.
+        var lockTag = selectExpression.Tags.LastOrDefault(t =>
+            t.StartsWith(LockTagConstants.Prefix, StringComparison.Ordinal)
+        );
 
-        if (lockOptions is null || !selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions)))
+        if (lockTag is null || !LockTagConstants.TryParse(lockTag, out var lockOptions))
             return result;
 
         UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);

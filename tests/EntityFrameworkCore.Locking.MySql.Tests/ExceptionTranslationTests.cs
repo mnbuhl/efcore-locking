@@ -17,7 +17,7 @@ public class ExceptionTranslationTests
         var ex = CreateMySqlException(1213);
         var result = _translator.Translate(ex);
         result.Should().BeOfType<DeadlockException>();
-        result!.InnerException.Should().BeSameAs(ex);
+        result.InnerException.Should().BeSameAs(ex);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class ExceptionTranslationTests
         var ex = CreateMySqlException(1205);
         var result = _translator.Translate(ex);
         result.Should().BeOfType<LockTimeoutException>();
-        result!.InnerException.Should().BeSameAs(ex);
+        result.InnerException.Should().BeSameAs(ex);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class ExceptionTranslationTests
         var ex = CreateMySqlException(3572);
         var result = _translator.Translate(ex);
         result.Should().BeOfType<LockTimeoutException>();
-        result!.InnerException.Should().BeSameAs(ex);
+        result.InnerException.Should().BeSameAs(ex);
     }
 
     [Fact]

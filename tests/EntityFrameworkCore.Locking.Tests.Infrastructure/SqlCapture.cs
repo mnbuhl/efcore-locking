@@ -53,5 +53,22 @@ public sealed class SqlCapture : DbCommandInterceptor
         return new ValueTask<object?>(result);
     }
 
+    public override int NonQueryExecuted(DbCommand command, CommandExecutedEventData eventData, int result)
+    {
+        _commands.Add(command.CommandText);
+        return result;
+    }
+
+    public override ValueTask<int> NonQueryExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        int result,
+        CancellationToken cancellationToken = default
+    )
+    {
+        _commands.Add(command.CommandText);
+        return new ValueTask<int>(result);
+    }
+
     public void Clear() => _commands.Clear();
 }

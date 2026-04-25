@@ -19,6 +19,7 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
 {
     private readonly ILockSqlGenerator _lockSqlGenerator;
     private bool _lockingActive;
+    private LockOptions? _activeLockOptions;
 
     public SqlServerLockingQuerySqlGenerator(
         QuerySqlGeneratorDependencies dependencies,
@@ -33,24 +34,30 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
 
     protected override Expression VisitSelect(SelectExpression selectExpression)
     {
-        var lockOptions = LockContext.Current;
         var previousLockingActive = _lockingActive;
+        var previousActiveLockOptions = _activeLockOptions;
 
-        var isLockingSelect =
-            lockOptions is not null && selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions));
+        // LastOrDefault: TagWith appends in call order, so the last locking tag is the most recent.
+        var lockTag = selectExpression.Tags.LastOrDefault(t =>
+            t.StartsWith(LockTagConstants.Prefix, StringComparison.Ordinal)
+        );
 
-        if (!isLockingSelect)
+        if (lockTag is null || !LockTagConstants.TryParse(lockTag, out var lockOptions))
         {
             _lockingActive = false;
+            _activeLockOptions = null;
             var innerResult = base.VisitSelect(selectExpression);
             _lockingActive = previousLockingActive;
+            _activeLockOptions = previousActiveLockOptions;
             return innerResult;
         }
 
         UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);
         _lockingActive = true;
+        _activeLockOptions = lockOptions;
         var result = base.VisitSelect(selectExpression);
         _lockingActive = previousLockingActive;
+        _activeLockOptions = previousActiveLockOptions;
         return result;
     }
 
@@ -58,19 +65,15 @@ internal sealed class SqlServerLockingQuerySqlGenerator : SqlServerQuerySqlGener
     {
         var result = base.VisitTable(tableExpression);
 
-        if (!_lockingActive)
+        if (!_lockingActive || _activeLockOptions is null)
             return result;
 
-        var lockOptions = LockContext.Current;
-        if (lockOptions is null)
-            return result;
-
-        if (!_lockSqlGenerator.SupportsLockOptions(lockOptions))
+        if (!_lockSqlGenerator.SupportsLockOptions(_activeLockOptions))
             throw new LockingConfigurationException(
-                $"Lock mode {lockOptions.Mode} with behavior {lockOptions.Behavior} is not supported by SQL Server."
+                $"Lock mode {_activeLockOptions.Mode} with behavior {_activeLockOptions.Behavior} is not supported by SQL Server."
             );
 
-        Sql.AppendLine($" {SqlServerLockSqlGenerator.BuildTableHint(lockOptions)}");
+        Sql.AppendLine($" {SqlServerLockSqlGenerator.BuildTableHint(_activeLockOptions)}");
         return result;
     }
 }

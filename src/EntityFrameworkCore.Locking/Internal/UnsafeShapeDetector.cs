@@ -21,5 +21,42 @@ internal static class UnsafeShapeDetector
             throw new LockingConfigurationException(
                 "ForUpdate/ForShare is not compatible with split queries. Remove AsSplitQuery()."
             );
+
+        if (selectExpression.IsDistinct)
+            throw new LockingConfigurationException("ForUpdate/ForShare is not compatible with DISTINCT queries.");
+
+        // Aggregate terminal ops (CountAsync, SumAsync, MaxAsync, MinAsync, LongCountAsync) produce
+        // a scalar aggregate function somewhere in the outer projection. Row-level locking a scalar is meaningless.
+        // EF Core wraps aggregates in CAST (SqlUnaryExpression) or COALESCE (SqlFunctionExpression), so we
+        // recursively walk each projection expression to find any aggregate SqlFunctionExpression.
+        // AnyAsync is safe: EF Core translates it to a scalar subquery with no outer aggregate function.
+        if (selectExpression.Projection.Any(p => ContainsAggregate(p.Expression)))
+            throw new LockingConfigurationException(
+                "ForUpdate/ForShare is not compatible with aggregate queries (CountAsync, SumAsync, MaxAsync, MinAsync, LongCountAsync)."
+            );
+
+        // GroupBy is not checked: ForUpdate<T> requires T : class, so EF Core always translates
+        // GroupBy results into correlated subqueries — GroupBy never appears on the outer SELECT.
     }
+
+    private static bool ContainsAggregate(SqlExpression expression) =>
+        expression switch
+        {
+            SqlFunctionExpression f when _aggregateFunctionNames.Contains(f.Name) => true,
+            SqlFunctionExpression f => f.Arguments?.Any(ContainsAggregate) == true,
+            SqlUnaryExpression u => ContainsAggregate(u.Operand),
+            _ => false,
+        };
+
+    private static readonly System.Collections.Generic.HashSet<string> _aggregateFunctionNames = new(
+        System.StringComparer.OrdinalIgnoreCase
+    )
+    {
+        "COUNT",
+        "COUNT_BIG",
+        "SUM",
+        "MAX",
+        "MIN",
+        "AVG",
+    };
 }

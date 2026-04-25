@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>EntityFrameworkCore.Locking.Benchmarks.Benchmarks.InterceptorBenchmarks-20260426-011635</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.4.1 (25E253) [Darwin 25.4.0]
+Apple M3 Pro, 1 CPU, 12 logical and 12 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+  DefaultJob : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method    </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>ShortSql_NoTag</td><td>6.272 ns</td><td>0.0845 ns</td><td>0.0749 ns</td><td>1.00</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>ShortSql_WithTag</td><td>2.807 ns</td><td>0.0269 ns</td><td>0.0239 ns</td><td>0.45</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>LongSql_NoTag</td><td>55.605 ns</td><td>0.6941 ns</td><td>0.6153 ns</td><td>8.87</td><td>0.14</td><td>-</td><td>NA</td>
+</tr><tr><td>LongSql_WithTag</td><td>2.764 ns</td><td>0.0318 ns</td><td>0.0297 ns</td><td>0.44</td><td>0.01</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

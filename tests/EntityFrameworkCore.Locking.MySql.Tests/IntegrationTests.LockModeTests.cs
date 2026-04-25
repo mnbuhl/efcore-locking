@@ -17,7 +17,7 @@ public partial class IntegrationTests
         var row = await ctx.Products.Where(p => p.Id == id).ForShare().FirstOrDefaultAsync();
 
         row.Should().NotBeNull();
-        row!.Name.Should().Be("Share Me");
+        row.Name.Should().Be("Share Me");
         await tx.RollbackAsync();
     }
 
@@ -86,5 +86,29 @@ public partial class IntegrationTests
 
         row.Should().NotBeNull();
         await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForUpdate_WhenOrderByTakeLockBehaviors_WhenInsideTransaction_ShouldEmitCorrectSql()
+    {
+        var (ctx, cap) = CreateContextWithCapture();
+        await using (ctx)
+        {
+            var (catId, _) = await SeedAsync(ctx, categoryName: "SqlCheck");
+
+            await using var tx = await ctx.Database.BeginTransactionAsync();
+
+            var result = await ctx
+                .Products.Where(p => p.CategoryId == catId)
+                .OrderBy(p => p.Id)
+                .Take(1)
+                .ForUpdate(LockBehavior.NoWait)
+                .ToListAsync();
+
+            result.Should().HaveCount(1);
+            cap.LastCommand.Should().Contain("FOR UPDATE NOWAIT");
+
+            await tx.RollbackAsync();
+        }
     }
 }

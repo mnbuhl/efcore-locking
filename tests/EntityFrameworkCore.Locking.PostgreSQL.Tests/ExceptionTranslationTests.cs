@@ -17,7 +17,7 @@ public class ExceptionTranslationTests
         var pgEx = CreatePostgresException("40P01");
         var result = _translator.Translate(pgEx);
         result.Should().BeOfType<DeadlockException>();
-        result!.InnerException.Should().BeSameAs(pgEx);
+        result.InnerException.Should().BeSameAs(pgEx);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class ExceptionTranslationTests
         var pgEx = CreatePostgresException("55P03");
         var result = _translator.Translate(pgEx);
         result.Should().BeOfType<LockTimeoutException>();
-        result!.InnerException.Should().BeSameAs(pgEx);
+        result.InnerException.Should().BeSameAs(pgEx);
     }
 
     [Fact]

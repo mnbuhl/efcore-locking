@@ -10,7 +10,7 @@ internal sealed class DistributedLockHandle : IDistributedLockHandle
     private int _released;
 
     public string Key { get; }
-    public System.Data.Common.DbConnection Connection { get; }
+    public DbConnection Connection { get; }
     public bool OpenedByConnection { get; }
 
     public DistributedLockHandle(

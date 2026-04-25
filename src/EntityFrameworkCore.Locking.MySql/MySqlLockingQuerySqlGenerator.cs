@@ -29,9 +29,11 @@ internal sealed class MySqlLockingQuerySqlGenerator : MySqlQuerySqlGenerator
     {
         var result = base.VisitSelect(selectExpression);
 
-        var lockOptions = LockContext.Current;
+        var lockTag = selectExpression.Tags.FirstOrDefault(t =>
+            t.StartsWith(LockTagConstants.Prefix, StringComparison.Ordinal)
+        );
 
-        if (lockOptions is null || !selectExpression.Tags.Contains(LockTagConstants.BuildTag(lockOptions)))
+        if (lockTag is null || !LockTagConstants.TryParse(lockTag, out var lockOptions))
             return result;
 
         UnsafeShapeDetector.ThrowIfUnsafe(selectExpression);

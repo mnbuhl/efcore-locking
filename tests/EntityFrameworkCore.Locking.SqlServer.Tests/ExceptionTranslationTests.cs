@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
-using EntityFrameworkCore.Locking.SqlServer;
 using Microsoft.Data.SqlClient;
 using Xunit;
 

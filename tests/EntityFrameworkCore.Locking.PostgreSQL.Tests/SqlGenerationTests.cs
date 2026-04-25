@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using EntityFrameworkCore.Locking.PostgreSQL;
 using Xunit;
 
 namespace EntityFrameworkCore.Locking.PostgreSQL.Tests;

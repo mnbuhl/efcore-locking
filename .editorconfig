@@ -384,7 +384,13 @@ dotnet_naming_style.camelcase.word_separator =
 dotnet_naming_style.camelcase.capitalization = camel_case
 
 dotnet_naming_style.s_camelcase.required_prefix = s_
-dotnet_naming_style.s_camelcase.required_suffix = 
-dotnet_naming_style.s_camelcase.word_separator = 
+dotnet_naming_style.s_camelcase.required_suffix =
+dotnet_naming_style.s_camelcase.word_separator =
 dotnet_naming_style.s_camelcase.capitalization = camel_case
+
+# Test projects: concurrency fixtures intentionally capture DbContexts in parallel
+# lambdas that complete before the outer `using` disposes them. Rider's
+# AccessToDisposedClosure inspection fires on these false positives.
+[tests/**/*.cs]
+resharper_access_to_disposed_closure_highlighting = none
 

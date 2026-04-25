@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using EntityFrameworkCore.Locking;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 

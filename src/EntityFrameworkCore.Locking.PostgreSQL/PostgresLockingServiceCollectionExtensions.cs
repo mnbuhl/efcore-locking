@@ -7,9 +7,7 @@ namespace EntityFrameworkCore.Locking.PostgreSQL;
 
 public static class PostgresLockingServiceCollectionExtensions
 {
-    /// <summary>
-    /// Adds row-level locking support for PostgreSQL (Npgsql). Call after UseNpgsql().
-    /// </summary>
+    /// <summary>Enables the locking interceptor for PostgreSQL (Npgsql). Call after UseNpgsql().</summary>
     public static DbContextOptionsBuilder<TContext> UseLocking<TContext>(
         this DbContextOptionsBuilder<TContext> optionsBuilder
     )
@@ -19,9 +17,7 @@ public static class PostgresLockingServiceCollectionExtensions
         return optionsBuilder;
     }
 
-    /// <summary>
-    /// Adds row-level locking support for PostgreSQL (Npgsql). Call after UseNpgsql().
-    /// </summary>
+    /// <inheritdoc cref="UseLocking{TContext}(DbContextOptionsBuilder{TContext})"/>
     public static DbContextOptionsBuilder UseLocking(this DbContextOptionsBuilder optionsBuilder)
     {
         var extension = new LockingOptionsExtension(new PostgresLockingProvider());

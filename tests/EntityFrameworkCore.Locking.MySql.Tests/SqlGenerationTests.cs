@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using EntityFrameworkCore.Locking.MySql;
 using Xunit;
 
 namespace EntityFrameworkCore.Locking.MySql.Tests;

@@ -7,9 +7,7 @@ namespace EntityFrameworkCore.Locking.SqlServer;
 
 public static class SqlServerLockingServiceCollectionExtensions
 {
-    /// <summary>
-    /// Adds row-level locking support for SQL Server. Call after UseSqlServer().
-    /// </summary>
+    /// <summary>Enables the locking interceptor for SQL Server. Call after UseSqlServer().</summary>
     public static DbContextOptionsBuilder<TContext> UseLocking<TContext>(
         this DbContextOptionsBuilder<TContext> optionsBuilder
     )
@@ -19,9 +17,7 @@ public static class SqlServerLockingServiceCollectionExtensions
         return optionsBuilder;
     }
 
-    /// <summary>
-    /// Adds row-level locking support for SQL Server. Call after UseSqlServer().
-    /// </summary>
+    /// <inheritdoc cref="UseLocking{TContext}(DbContextOptionsBuilder{TContext})"/>
     public static DbContextOptionsBuilder UseLocking(this DbContextOptionsBuilder optionsBuilder)
     {
         var extension = new LockingOptionsExtension(new SqlServerLockingProvider());

@@ -185,6 +185,68 @@ public abstract partial class IntegrationTestsBase
         await tx.RollbackAsync();
     }
 
+    // --- Subquery shapes ---
+
+    [Fact]
+    public async Task ForUpdate_WithContainsInWhere_LocksMatchingRows()
+    {
+        await using var ctx = CreateContext();
+        var (_, id) = await SeedAsync(ctx);
+
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+        var ids = new[] { id };
+        var products = await ctx.Products.Where(p => ids.Contains(p.Id)).ForUpdate().ToListAsync();
+
+        products.Should().HaveCount(1);
+        products[0].Id.Should().Be(id);
+        await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForUpdate_WithCorrelatedSubqueryInWhere_LocksMatchingRows()
+    {
+        await using var ctx = CreateContext();
+        var (_, id) = await SeedAsync(ctx);
+        ctx.OrderLines.Add(
+            new OrderLine
+            {
+                ProductId = id,
+                Quantity = 1,
+                UnitPrice = 5m,
+            }
+        );
+        await ctx.SaveChangesAsync();
+
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+        // Correlated subquery in WHERE: lock applies to the outer SELECT's rows
+        var products = await ctx
+            .Products.Where(p => ctx.OrderLines.Any(ol => ol.ProductId == p.Id))
+            .ForUpdate()
+            .ToListAsync();
+
+        products.Should().HaveCount(1);
+        products[0].Id.Should().Be(id);
+        await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task ForUpdate_WithChainedWhere_LocksMatchingRows()
+    {
+        await using var ctx = CreateContext();
+        var (_, id) = await SeedAsync(ctx, price: 5m);
+
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+        var product = await ctx
+            .Products.Where(p => p.Price > 1m)
+            .Where(p => p.Id == id)
+            .ForUpdate()
+            .FirstOrDefaultAsync();
+
+        product.Should().NotBeNull();
+        product!.Id.Should().Be(id);
+        await tx.RollbackAsync();
+    }
+
     // --- Unsupported shapes ---
 
     [Fact]

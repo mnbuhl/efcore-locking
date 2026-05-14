@@ -26,9 +26,11 @@ public partial class IntegrationTests(SqlServerFixture fixture) : IntegrationTes
 
     protected override async Task ResetDatabaseAsync(TestDbContext ctx)
     {
+        await ctx.Database.ExecuteSqlRawAsync("DELETE FROM [ModelsWithDateTimeOffset]");
         await ctx.Database.ExecuteSqlRawAsync("DELETE FROM [OrderLines]");
         await ctx.Database.ExecuteSqlRawAsync("DELETE FROM [Products]");
         await ctx.Database.ExecuteSqlRawAsync("DELETE FROM [Categories]");
+        await ctx.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('[ModelsWithDateTimeOffset]', RESEED, 0)");
         await ctx.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('[OrderLines]', RESEED, 0)");
         await ctx.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('[Products]', RESEED, 0)");
         await ctx.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('[Categories]', RESEED, 0)");

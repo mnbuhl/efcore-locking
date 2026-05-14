@@ -35,6 +35,7 @@ public partial class IntegrationTests(MySqlFixture fixture) : IntegrationTestsBa
 
     protected override async Task ResetDatabaseAsync(TestDbContext ctx)
     {
+        await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `ModelsWithDateTimeOffset`");
         await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `OrderLines`");
         await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `Products`");
         await ctx.Database.ExecuteSqlRawAsync("DELETE FROM `Categories`");

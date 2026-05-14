@@ -156,4 +156,32 @@ public abstract partial class IntegrationTestsBase : IAsyncLifetime
         products.Should().HaveCount(3);
         await tx.RollbackAsync();
     }
+
+    [Fact]
+    public async Task ForUpdate_WithDateTimeOffsetColumn_MaterializesProviderValue()
+    {
+        await using var ctx = CreateContext();
+        var expected = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var entity = new ModelWithDateTimeOffset { Date = expected };
+        ctx.ModelsWithDateTimeOffset.Add(entity);
+        await ctx.SaveChangesAsync();
+
+        await using var tx = await ctx.Database.BeginTransactionAsync();
+        var result = ctx
+            .ModelsWithDateTimeOffset.ForUpdate()
+            .Where(m => m.Date < DateTimeOffset.UtcNow.AddMinutes(-1))
+            .FirstOrDefault(m => m.Id == entity.Id);
+
+        result.Should().NotBeNull();
+        result!.Date.Should().BeCloseTo(expected, TimeSpan.FromMilliseconds(1));
+
+        result = await ctx
+            .ModelsWithDateTimeOffset.Where(m => m.Date < DateTimeOffset.UtcNow.AddMinutes(-1))
+            .ForUpdate()
+            .FirstOrDefaultAsync(m => m.Id == entity.Id);
+
+        result.Should().NotBeNull();
+        result!.Date.Should().BeCloseTo(expected, TimeSpan.FromMilliseconds(1));
+        await tx.RollbackAsync();
+    }
 }

@@ -91,6 +91,11 @@ internal sealed class TranslatingDbDataReader : DbDataReader
 
     public override Type GetFieldType(int ordinal) => _inner.GetFieldType(ordinal);
 
+    public override T GetFieldValue<T>(int ordinal) => Wrap(() => _inner.GetFieldValue<T>(ordinal));
+
+    public override Task<T> GetFieldValueAsync<T>(int ordinal, CancellationToken cancellationToken) =>
+        WrapAsync(() => _inner.GetFieldValueAsync<T>(ordinal, cancellationToken));
+
     public override float GetFloat(int ordinal) => _inner.GetFloat(ordinal);
 
     public override Guid GetGuid(int ordinal) => _inner.GetGuid(ordinal);

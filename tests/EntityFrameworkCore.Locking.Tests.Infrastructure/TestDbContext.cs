@@ -7,6 +7,7 @@ public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<OrderLine> OrderLines => Set<OrderLine>();
+    public DbSet<ModelWithDateTimeOffset> ModelsWithDateTimeOffset => Set<ModelWithDateTimeOffset>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,6 +30,12 @@ public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(
             b.HasKey(ol => ol.Id);
             b.Property(ol => ol.UnitPrice).HasColumnType("decimal(18,2)");
             b.HasOne(ol => ol.Product).WithMany(p => p.OrderLines).HasForeignKey(ol => ol.ProductId);
+        });
+
+        modelBuilder.Entity<ModelWithDateTimeOffset>(b =>
+        {
+            b.HasKey(m => m.Id);
+            b.Property(m => m.Date).IsRequired();
         });
     }
 }
@@ -58,4 +65,10 @@ public class OrderLine
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public Product Product { get; set; } = null!;
+}
+
+public class ModelWithDateTimeOffset
+{
+    public int Id { get; set; }
+    public DateTimeOffset Date { get; set; }
 }

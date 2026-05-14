@@ -25,5 +25,7 @@ public partial class IntegrationTests(PostgresFixture fixture) : IntegrationTest
     }
 
     protected override Task ResetDatabaseAsync(TestDbContext ctx) =>
-        ctx.Database.ExecuteSqlRawAsync("""TRUNCATE "OrderLines", "Products", "Categories" RESTART IDENTITY CASCADE""");
+        ctx.Database.ExecuteSqlRawAsync(
+            """TRUNCATE "OrderLines", "Products", "Categories", "ModelsWithDateTimeOffset" RESTART IDENTITY CASCADE"""
+        );
 }

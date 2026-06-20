@@ -24,6 +24,7 @@ public static class DatabaseFacadeDistributedLockExtensions
     /// <param name="key">Lock key (1–255 characters).</param>
     /// <param name="timeout">Maximum time to wait. Throws <see cref="LockTimeoutException"/> if exceeded. Null = wait indefinitely.</param>
     /// <param name="ct">Cancellation token. Cancellation is best-effort (driver-dependent).</param>
+    /// <param name="mode">Distributed lock mode. Defaults to exclusive.</param>
     /// <exception cref="LockingConfigurationException">
     /// Thrown if the key is null, empty, or longer than 255 characters; if no locking provider is
     /// registered; or if the provider does not support distributed locks.
@@ -35,16 +36,17 @@ public static class DatabaseFacadeDistributedLockExtensions
         this DatabaseFacade database,
         string key,
         TimeSpan? timeout = null,
-        CancellationToken ct = default
+        CancellationToken ct = default,
+        DistributedLockMode mode = DistributedLockMode.Exclusive
     )
     {
-        var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct).ConfigureAwait(false);
+        var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct, mode).ConfigureAwait(false);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             try
             {
-                return await provider.AcquireAsync(ctx, connection, key, timeout, ct).ConfigureAwait(false);
+                return await provider.AcquireAsync(ctx, connection, key, timeout, ct, mode).ConfigureAwait(false);
             }
             catch
             {
@@ -72,17 +74,18 @@ public static class DatabaseFacadeDistributedLockExtensions
     public static async Task<IDistributedLockHandle?> TryAcquireDistributedLockAsync(
         this DatabaseFacade database,
         string key,
-        CancellationToken ct = default
+        CancellationToken ct = default,
+        DistributedLockMode mode = DistributedLockMode.Exclusive
     )
     {
-        var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct).ConfigureAwait(false);
+        var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct, mode).ConfigureAwait(false);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             IDistributedLockHandle? handle;
             try
             {
-                handle = await provider.TryAcquireAsync(ctx, connection, key, ct).ConfigureAwait(false);
+                handle = await provider.TryAcquireAsync(ctx, connection, key, ct, mode).ConfigureAwait(false);
             }
             catch
             {
@@ -115,16 +118,17 @@ public static class DatabaseFacadeDistributedLockExtensions
     public static IDistributedLockHandle AcquireDistributedLock(
         this DatabaseFacade database,
         string key,
-        TimeSpan? timeout = null
+        TimeSpan? timeout = null,
+        DistributedLockMode mode = DistributedLockMode.Exclusive
     )
     {
-        var (ctx, provider, connection, openedByMe) = PrepareSync(database, key);
+        var (ctx, provider, connection, openedByMe) = PrepareSync(database, key, mode);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             try
             {
-                return provider.Acquire(ctx, connection, key, timeout);
+                return provider.Acquire(ctx, connection, key, timeout, mode);
             }
             catch
             {
@@ -145,16 +149,20 @@ public static class DatabaseFacadeDistributedLockExtensions
     /// Thrown if the key is invalid, no provider is registered, or the provider does not support distributed locks.
     /// </exception>
     /// <returns>A lock handle, or <c>null</c> if the lock is currently held by another connection.</returns>
-    public static IDistributedLockHandle? TryAcquireDistributedLock(this DatabaseFacade database, string key)
+    public static IDistributedLockHandle? TryAcquireDistributedLock(
+        this DatabaseFacade database,
+        string key,
+        DistributedLockMode mode = DistributedLockMode.Exclusive
+    )
     {
-        var (ctx, provider, connection, openedByMe) = PrepareSync(database, key);
+        var (ctx, provider, connection, openedByMe) = PrepareSync(database, key, mode);
         try
         {
             DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
             IDistributedLockHandle? handle;
             try
             {
-                handle = provider.TryAcquire(ctx, connection, key);
+                handle = provider.TryAcquire(ctx, connection, key, mode);
             }
             catch
             {
@@ -189,9 +197,10 @@ public static class DatabaseFacadeDistributedLockExtensions
         IAdvisoryLockProvider provider,
         DbConnection connection,
         bool openedByMe
-    )> PrepareAsync(DatabaseFacade database, string key, CancellationToken ct)
+    )> PrepareAsync(DatabaseFacade database, string key, CancellationToken ct, DistributedLockMode mode)
     {
         ValidateKey(key);
+        ValidateMode(mode);
         var ctx = GetContext(database);
         var provider = ResolveProvider(database);
         var connection = database.GetDbConnection();
@@ -209,9 +218,10 @@ public static class DatabaseFacadeDistributedLockExtensions
         IAdvisoryLockProvider provider,
         DbConnection connection,
         bool openedByMe
-    ) PrepareSync(DatabaseFacade database, string key)
+    ) PrepareSync(DatabaseFacade database, string key, DistributedLockMode mode)
     {
         ValidateKey(key);
+        ValidateMode(mode);
         var ctx = GetContext(database);
         var provider = ResolveProvider(database);
         var connection = database.GetDbConnection();
@@ -230,6 +240,12 @@ public static class DatabaseFacadeDistributedLockExtensions
             throw new LockingConfigurationException("Lock key must not be null or empty.");
         if (key.Length > 255)
             throw new LockingConfigurationException("Lock key must not exceed 255 characters.");
+    }
+
+    private static void ValidateMode(DistributedLockMode mode)
+    {
+        if (!Enum.IsDefined(mode))
+            throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'.");
     }
 
     private static DbContext GetContext(DatabaseFacade database) =>

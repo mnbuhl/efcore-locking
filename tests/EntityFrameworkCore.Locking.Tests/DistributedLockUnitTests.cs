@@ -130,6 +130,45 @@ public class DistributedLockUnitTests
         await handle.DisposeAsync();
     }
 
+    [Fact]
+    public async Task AcquireDistributedLockAsync_DefaultMode_UsesExclusive()
+    {
+        await using var ctx = CreateContext();
+
+        await using var handle = await ctx.Database.AcquireDistributedLockAsync("default-mode");
+
+        handle.Should().NotBeNull();
+        ctx.LockingProvider.Advisory.LastMode.Should().Be(DistributedLockMode.Exclusive);
+    }
+
+    [Fact]
+    public async Task AcquireDistributedLockAsync_ExplicitSharedMode_IsPassedToProvider()
+    {
+        await using var ctx = CreateContext();
+
+        await using var handle = await ctx.Database.AcquireDistributedLockAsync(
+            "shared-mode",
+            mode: DistributedLockMode.Shared
+        );
+
+        handle.Should().NotBeNull();
+        ctx.LockingProvider.Advisory.LastMode.Should().Be(DistributedLockMode.Shared);
+    }
+
+    [Fact]
+    public async Task TryAcquireDistributedLockAsync_ExplicitSharedMode_IsPassedToProvider()
+    {
+        await using var ctx = CreateContext();
+
+        await using var handle = await ctx.Database.TryAcquireDistributedLockAsync(
+            "try-shared-mode",
+            mode: DistributedLockMode.Shared
+        );
+
+        handle.Should().NotBeNull();
+        ctx.LockingProvider.Advisory.LastMode.Should().Be(DistributedLockMode.Shared);
+    }
+
     // --- Factory ---
 
     private static FakeDbContext CreateContext()
@@ -137,13 +176,16 @@ public class DistributedLockUnitTests
         var fakeConn = new FakeDbConnection();
         var fakeProvider = new FakeLockingProvider();
 
-        var options = new DbContextOptionsBuilder<FakeDbContext>().UseSqlServer(fakeConn).Options;
+        var options = new DbContextOptionsBuilder<FakeDbContext>()
+            .UseSqlServer(fakeConn)
+            .EnableServiceProviderCaching(false)
+            .Options;
 
         // Inject the fake locking provider via the options extension
         var extension = new LockingOptionsExtension(fakeProvider);
         options = (DbContextOptions<FakeDbContext>)options.WithExtension(extension);
 
-        return new FakeDbContext(options, fakeConn);
+        return new FakeDbContext(options, fakeProvider);
     }
 }
 
@@ -151,8 +193,13 @@ public class DistributedLockUnitTests
 
 internal sealed class FakeDbContext : DbContext
 {
-    public FakeDbContext(DbContextOptions<FakeDbContext> options, FakeDbConnection connection)
-        : base(options) { }
+    public FakeDbContext(DbContextOptions<FakeDbContext> options, FakeLockingProvider lockingProvider)
+        : base(options)
+    {
+        LockingProvider = lockingProvider;
+    }
+
+    public FakeLockingProvider LockingProvider { get; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
 }
@@ -188,6 +235,7 @@ internal sealed class FakeLockingProvider : ILockingProvider
 {
     private readonly FakeAdvisoryLockProvider _advisory = new();
 
+    public FakeAdvisoryLockProvider Advisory => _advisory;
     public ILockSqlGenerator RowLockGenerator { get; } = new FakeLockSqlGenerator();
     public string ProviderName => "Fake";
     public IExceptionTranslator ExceptionTranslator { get; } = new FakeExceptionTranslator();
@@ -216,14 +264,18 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
     private readonly Dictionary<DbConnection, HashSet<string>> _held = new();
     private readonly object _gate = new();
 
+    public DistributedLockMode LastMode { get; private set; }
+
     public Task<IDistributedLockHandle> AcquireAsync(
         DbContext context,
         DbConnection connection,
         string key,
         TimeSpan? timeout,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
+        LastMode = mode;
         var handle = CreateHandle(context, connection, key);
         return Task.FromResult(handle);
     }
@@ -232,9 +284,11 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         DbContext context,
         DbConnection connection,
         string key,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
+        LastMode = mode;
         IDistributedLockHandle? handle;
         lock (_gate)
         {
@@ -250,11 +304,26 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         return Task.FromResult(handle);
     }
 
-    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout) =>
-        CreateHandle(context, connection, key);
-
-    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
+    public IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        DistributedLockMode mode
+    )
     {
+        LastMode = mode;
+        return CreateHandle(context, connection, key);
+    }
+
+    public IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        DistributedLockMode mode
+    )
+    {
+        LastMode = mode;
         lock (_gate)
         {
             if (_held.TryGetValue(connection, out var keys) && keys.Contains(key))

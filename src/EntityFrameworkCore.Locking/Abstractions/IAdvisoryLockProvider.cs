@@ -14,14 +14,30 @@ public interface IAdvisoryLockProvider
         DbConnection connection,
         string key,
         TimeSpan? timeout,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     );
+
     Task<IDistributedLockHandle?> TryAcquireAsync(
         DbContext context,
         DbConnection connection,
         string key,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     );
-    IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout);
-    IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key);
+
+    IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        DistributedLockMode mode
+    );
+
+    IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        DistributedLockMode mode
+    );
 }

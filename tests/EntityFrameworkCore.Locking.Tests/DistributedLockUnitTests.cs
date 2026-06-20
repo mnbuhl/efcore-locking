@@ -139,6 +139,65 @@ public class DistributedLockUnitTests
         h2.Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task AcquireDistributedLockAsync_SameConnectionDifferentContexts_MixedModes_ThrowsLockAlreadyHeld()
+    {
+        var fakeConn = new FakeDbConnection();
+        var fakeProvider = new FakeLockingProvider();
+        await using var sharedContext = CreateContext(fakeConn, fakeProvider);
+        await using var exclusiveContext = CreateContext(fakeConn, fakeProvider);
+        await using var shared = await sharedContext.Database.AcquireDistributedLockAsync(
+            "same-session-mode",
+            mode: DistributedLockMode.Shared
+        );
+
+        var ex = await Assert.ThrowsAsync<LockAlreadyHeldException>(() =>
+            exclusiveContext.Database.AcquireDistributedLockAsync(
+                "same-session-mode",
+                mode: DistributedLockMode.Exclusive
+            )
+        );
+
+        ex.Key.Should().Be("same-session-mode");
+    }
+
+    [Fact]
+    public async Task AcquireDistributedLockAsync_SameConnectionDifferentContexts_SameMode_CanAcquireUntilAllReleased()
+    {
+        var fakeConn = new FakeDbConnection();
+        var fakeProvider = new FakeLockingProvider();
+        await using var firstContext = CreateContext(fakeConn, fakeProvider);
+        await using var secondContext = CreateContext(fakeConn, fakeProvider);
+
+        var first = await firstContext.Database.AcquireDistributedLockAsync(
+            "same-session-shared",
+            mode: DistributedLockMode.Shared
+        );
+        var second = await secondContext.Database.AcquireDistributedLockAsync(
+            "same-session-shared",
+            mode: DistributedLockMode.Shared
+        );
+
+        first.Should().NotBeNull();
+        second.Should().NotBeNull();
+
+        await first.DisposeAsync();
+        await Assert.ThrowsAsync<LockAlreadyHeldException>(() =>
+            firstContext.Database.AcquireDistributedLockAsync(
+                "same-session-shared",
+                mode: DistributedLockMode.Exclusive
+            )
+        );
+
+        await second.DisposeAsync();
+        await using var exclusive = await firstContext.Database.AcquireDistributedLockAsync(
+            "same-session-shared",
+            mode: DistributedLockMode.Exclusive
+        );
+
+        exclusive.Should().NotBeNull();
+    }
+
     // --- TryAcquire returns handle on free key ---
 
     [Fact]

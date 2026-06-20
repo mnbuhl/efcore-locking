@@ -43,7 +43,7 @@ public static class DatabaseFacadeDistributedLockExtensions
         var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct, mode).ConfigureAwait(false);
         try
         {
-            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
+            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
             try
             {
                 return await provider.AcquireAsync(ctx, connection, key, timeout, ct, mode).ConfigureAwait(false);
@@ -85,7 +85,7 @@ public static class DatabaseFacadeDistributedLockExtensions
         var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct, mode).ConfigureAwait(false);
         try
         {
-            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
+            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
             IDistributedLockHandle? handle;
             try
             {
@@ -133,7 +133,7 @@ public static class DatabaseFacadeDistributedLockExtensions
         var (ctx, provider, connection, openedByMe) = PrepareSync(database, key, mode);
         try
         {
-            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
+            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
             try
             {
                 return provider.Acquire(ctx, connection, key, timeout, mode);
@@ -169,7 +169,7 @@ public static class DatabaseFacadeDistributedLockExtensions
         var (ctx, provider, connection, openedByMe) = PrepareSync(database, key, mode);
         try
         {
-            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key);
+            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
             IDistributedLockHandle? handle;
             try
             {

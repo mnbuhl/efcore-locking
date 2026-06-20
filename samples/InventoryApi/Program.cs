@@ -225,6 +225,32 @@ app.MapPost(
     }
 );
 
+// GET /products/price-sync-preview — shared distributed lock.
+// Multiple preview readers can run together, but they coordinate with the exclusive price-sync lock below.
+app.MapGet(
+    "/products/price-sync-preview",
+    async (InventoryDbContext db) =>
+    {
+        await using var handle = await db.Database.AcquireDistributedLockAsync(
+            "products:price-sync",
+            mode: DistributedLockMode.Shared
+        );
+
+        var products = await db
+            .Products.OrderBy(p => p.Id)
+            .Select(p => new
+            {
+                p.Id,
+                p.Name,
+                CurrentPrice = p.Price,
+                PreviewPrice = Math.Round(p.Price * 1.05m, 2),
+            })
+            .ToListAsync();
+
+        return Results.Ok(products);
+    }
+);
+
 // POST /products/price-sync — AcquireDistributedLockAsync with timeout.
 // Waits up to 3 seconds for the lock; returns 409 if another sync is still running by then.
 // Use this when the operation is short-lived and callers can tolerate a brief wait.

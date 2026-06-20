@@ -14,37 +14,6 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
     // Namespace prefix "EFLK" packed into the upper 32 bits of the bigint key.
     private const long NamespaceMask = 0x45464C4B_00000000L;
 
-    private static long ComputeKey(string key)
-    {
-        var bytes = Encoding.UTF8.GetBytes(key);
-        var hash = XxHash32.HashToUInt32(bytes);
-        return NamespaceMask | hash;
-    }
-
-    private static string GetAcquireFunction(DistributedLockMode mode) =>
-        mode switch
-        {
-            DistributedLockMode.Exclusive => "pg_advisory_lock",
-            DistributedLockMode.Shared => "pg_advisory_lock_shared",
-            _ => throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'."),
-        };
-
-    private static string GetTryAcquireFunction(DistributedLockMode mode) =>
-        mode switch
-        {
-            DistributedLockMode.Exclusive => "pg_try_advisory_lock",
-            DistributedLockMode.Shared => "pg_try_advisory_lock_shared",
-            _ => throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'."),
-        };
-
-    private static string GetReleaseFunction(DistributedLockMode mode) =>
-        mode switch
-        {
-            DistributedLockMode.Exclusive => "pg_advisory_unlock",
-            DistributedLockMode.Shared => "pg_advisory_unlock_shared",
-            _ => throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'."),
-        };
-
     public async Task<IDistributedLockHandle> AcquireAsync(
         DbContext context,
         DbConnection connection,
@@ -241,4 +210,35 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
 
         return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
     }
+
+    private static long ComputeKey(string key)
+    {
+        var bytes = Encoding.UTF8.GetBytes(key);
+        var hash = XxHash32.HashToUInt32(bytes);
+        return NamespaceMask | hash;
+    }
+
+    private static string GetAcquireFunction(DistributedLockMode mode) =>
+        mode switch
+        {
+            DistributedLockMode.Exclusive => "pg_advisory_lock",
+            DistributedLockMode.Shared => "pg_advisory_lock_shared",
+            _ => throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'."),
+        };
+
+    private static string GetTryAcquireFunction(DistributedLockMode mode) =>
+        mode switch
+        {
+            DistributedLockMode.Exclusive => "pg_try_advisory_lock",
+            DistributedLockMode.Shared => "pg_try_advisory_lock_shared",
+            _ => throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'."),
+        };
+
+    private static string GetReleaseFunction(DistributedLockMode mode) =>
+        mode switch
+        {
+            DistributedLockMode.Exclusive => "pg_advisory_unlock",
+            DistributedLockMode.Shared => "pg_advisory_unlock_shared",
+            _ => throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'."),
+        };
 }

@@ -211,7 +211,6 @@ public static class DatabaseFacadeDistributedLockExtensions
     )> PrepareAsync(DatabaseFacade database, string key, CancellationToken ct, DistributedLockMode mode)
     {
         ValidateKey(key);
-        ValidateMode(mode);
         var ctx = GetContext(database);
         var provider = ResolveProvider(database);
         provider.ValidateMode(mode);
@@ -233,7 +232,6 @@ public static class DatabaseFacadeDistributedLockExtensions
     ) PrepareSync(DatabaseFacade database, string key, DistributedLockMode mode)
     {
         ValidateKey(key);
-        ValidateMode(mode);
         var ctx = GetContext(database);
         var provider = ResolveProvider(database);
         provider.ValidateMode(mode);
@@ -253,12 +251,6 @@ public static class DatabaseFacadeDistributedLockExtensions
             throw new LockingConfigurationException("Lock key must not be null or empty.");
         if (key.Length > 255)
             throw new LockingConfigurationException("Lock key must not exceed 255 characters.");
-    }
-
-    private static void ValidateMode(DistributedLockMode mode)
-    {
-        if (!Enum.IsDefined(mode))
-            throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'.");
     }
 
     private static DbContext GetContext(DatabaseFacade database) =>

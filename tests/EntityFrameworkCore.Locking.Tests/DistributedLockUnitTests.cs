@@ -209,10 +209,7 @@ public class DistributedLockUnitTests
     {
         using var ctx = CreateContext();
 
-        using var handle = ctx.Database.AcquireDistributedLock(
-            "sync-shared-mode",
-            mode: DistributedLockMode.Shared
-        );
+        using var handle = ctx.Database.AcquireDistributedLock("sync-shared-mode", mode: DistributedLockMode.Shared);
 
         handle.Should().NotBeNull();
         ctx.LockingProvider.Advisory.LastMode.Should().Be(DistributedLockMode.Shared);

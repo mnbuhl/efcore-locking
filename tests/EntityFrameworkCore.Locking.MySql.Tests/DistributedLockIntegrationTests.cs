@@ -28,10 +28,8 @@ public class DistributedLockIntegrationTests(MySqlFixture fixture) : Distributed
     {
         await using var ctx = CreateContext();
 
-        Func<Task> act = () => ctx.Database.AcquireDistributedLockAsync(
-            "mysql-shared-unsupported",
-            mode: DistributedLockMode.Shared
-        );
+        Func<Task> act = () =>
+            ctx.Database.AcquireDistributedLockAsync("mysql-shared-unsupported", mode: DistributedLockMode.Shared);
 
         await act.Should()
             .ThrowAsync<LockingConfigurationException>()

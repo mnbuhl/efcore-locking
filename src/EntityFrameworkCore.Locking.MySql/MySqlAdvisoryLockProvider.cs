@@ -165,7 +165,7 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
                 return;
             case DistributedLockMode.Shared:
                 throw new LockingConfigurationException(
-                    "Shared distributed locks are not supported yet for the MySQL provider."
+                    "MySQL GET_LOCK does not support shared distributed locks."
                 );
             default:
                 throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'.");

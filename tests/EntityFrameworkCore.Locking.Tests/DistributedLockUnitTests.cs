@@ -137,6 +137,7 @@ public class DistributedLockUnitTests
         await using var ctx = CreateContext();
         var handle = await ctx.Database.TryAcquireDistributedLockAsync("free");
         handle.Should().NotBeNull();
+        ctx.LockingProvider.Advisory.LastMode.Should().Be(DistributedLockMode.Exclusive);
         await handle.DisposeAsync();
     }
 

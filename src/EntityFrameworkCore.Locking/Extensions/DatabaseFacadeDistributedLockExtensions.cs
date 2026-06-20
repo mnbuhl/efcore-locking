@@ -66,6 +66,10 @@ public static class DatabaseFacadeDistributedLockExtensions
     /// Attempts to acquire a distributed lock without blocking.
     /// Returns null immediately if the lock is held by another connection.
     /// </summary>
+    /// <param name="database">The <see cref="DatabaseFacade"/> whose connection will hold the lock.</param>
+    /// <param name="key">Lock key (1–255 characters).</param>
+    /// <param name="ct">Cancellation token. Cancellation is best-effort (driver-dependent).</param>
+    /// <param name="mode">Distributed lock mode. Defaults to exclusive.</param>
     /// <exception cref="LockingConfigurationException">
     /// Thrown if the key is null, empty, or longer than 255 characters; if no locking provider is
     /// registered; or if the provider does not support distributed locks.
@@ -109,6 +113,10 @@ public static class DatabaseFacadeDistributedLockExtensions
     }
 
     /// <summary>Acquires a distributed lock synchronously.</summary>
+    /// <param name="database">The <see cref="DatabaseFacade"/> whose connection will hold the lock.</param>
+    /// <param name="key">Lock key (1–255 characters).</param>
+    /// <param name="timeout">Maximum time to wait. Null = wait indefinitely.</param>
+    /// <param name="mode">Distributed lock mode. Defaults to exclusive.</param>
     /// <exception cref="LockingConfigurationException">
     /// Thrown if the key is invalid, no provider is registered, or the provider does not support distributed locks.
     /// </exception>
@@ -145,6 +153,9 @@ public static class DatabaseFacadeDistributedLockExtensions
     }
 
     /// <summary>Attempts to acquire a distributed lock synchronously. Returns null if contested.</summary>
+    /// <param name="database">The <see cref="DatabaseFacade"/> whose connection will hold the lock.</param>
+    /// <param name="key">Lock key (1–255 characters).</param>
+    /// <param name="mode">Distributed lock mode. Defaults to exclusive.</param>
     /// <exception cref="LockingConfigurationException">
     /// Thrown if the key is invalid, no provider is registered, or the provider does not support distributed locks.
     /// </exception>

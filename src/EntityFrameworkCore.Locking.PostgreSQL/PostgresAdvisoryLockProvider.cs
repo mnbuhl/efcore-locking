@@ -30,6 +30,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var lockKey = ComputeKey(key);
         try
         {
@@ -89,6 +90,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var lockKey = ComputeKey(key);
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT pg_try_advisory_lock($1)";
@@ -107,6 +109,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var lockKey = ComputeKey(key);
         try
         {
@@ -157,6 +160,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var lockKey = ComputeKey(key);
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT pg_try_advisory_lock($1)";
@@ -165,6 +169,21 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         if (result is false or null)
             return null;
         return BuildHandle(context, connection, key, lockKey);
+    }
+
+    private static void ValidateMode(DistributedLockMode mode)
+    {
+        switch (mode)
+        {
+            case DistributedLockMode.Exclusive:
+                return;
+            case DistributedLockMode.Shared:
+                throw new LockingConfigurationException(
+                    "Shared distributed locks are not implemented yet for the PostgreSQL provider."
+                );
+            default:
+                throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'.");
+        }
     }
 
     private static IDistributedLockHandle BuildHandle(

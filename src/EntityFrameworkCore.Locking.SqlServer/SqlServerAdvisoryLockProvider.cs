@@ -27,6 +27,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var timeoutMs = ToTimeoutMs(timeout);
         await using var cmd = BuildAcquireCommand(connection, key, timeoutMs);
         await using var reg = ct.Register(static s => ((DbCommand)s!).Cancel(), cmd);
@@ -51,6 +52,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         await using var cmd = BuildAcquireCommand(connection, key, timeoutMs: 0);
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         var returnCode = GetReturnCode(cmd);
@@ -68,6 +70,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var timeoutMs = ToTimeoutMs(timeout);
         using var cmd = BuildAcquireCommand(connection, key, timeoutMs);
         cmd.ExecuteNonQuery();
@@ -82,6 +85,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         using var cmd = BuildAcquireCommand(connection, key, timeoutMs: 0);
         cmd.ExecuteNonQuery();
         var returnCode = GetReturnCode(cmd);
@@ -165,6 +169,21 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
             return -1;
         var ms = (long)timeout.Value.TotalMilliseconds;
         return (int)Math.Min(ms, int.MaxValue);
+    }
+
+    private static void ValidateMode(DistributedLockMode mode)
+    {
+        switch (mode)
+        {
+            case DistributedLockMode.Exclusive:
+                return;
+            case DistributedLockMode.Shared:
+                throw new LockingConfigurationException(
+                    "Shared distributed locks are not implemented yet for the SQL Server provider."
+                );
+            default:
+                throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'.");
+        }
     }
 
     private static void AddParam(DbCommand cmd, string name, object value)

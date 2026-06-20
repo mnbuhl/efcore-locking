@@ -36,6 +36,7 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var encodedKey = EncodeKey(key);
         var timeoutSeconds = timeout.HasValue ? (long)Math.Ceiling(timeout.Value.TotalSeconds) : -1L;
 
@@ -65,6 +66,7 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var encodedKey = EncodeKey(key);
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT GET_LOCK(@key, 0)";
@@ -86,6 +88,7 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var encodedKey = EncodeKey(key);
         var timeoutSeconds = timeout.HasValue ? (long)Math.Ceiling(timeout.Value.TotalSeconds) : -1L;
 
@@ -112,6 +115,7 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var encodedKey = EncodeKey(key);
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT GET_LOCK(@key, 0)";
@@ -151,6 +155,21 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         }
 
         return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
+    }
+
+    private static void ValidateMode(DistributedLockMode mode)
+    {
+        switch (mode)
+        {
+            case DistributedLockMode.Exclusive:
+                return;
+            case DistributedLockMode.Shared:
+                throw new LockingConfigurationException(
+                    "Shared distributed locks are not supported yet for the MySQL provider."
+                );
+            default:
+                throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'.");
+        }
     }
 
     private static void AddParam(DbCommand cmd, string name, object value)

@@ -65,6 +65,16 @@ public class DistributedLockUnitTests
     }
 
     [Fact]
+    public void AcquireDistributedLock_InvalidMode_ThrowsLockingConfigurationException()
+    {
+        using var ctx = CreateContext();
+
+        Assert.Throws<LockingConfigurationException>(() =>
+            ctx.Database.AcquireDistributedLock("invalid-sync-mode", mode: (DistributedLockMode)999)
+        );
+    }
+
+    [Fact]
     public async Task AcquireDistributedLockAsync_MaxKey255_Accepted()
     {
         await using var ctx = CreateContext();
@@ -173,6 +183,34 @@ public class DistributedLockUnitTests
 
         await using var handle = await ctx.Database.TryAcquireDistributedLockAsync(
             "try-shared-mode",
+            mode: DistributedLockMode.Shared
+        );
+
+        handle.Should().NotBeNull();
+        ctx.LockingProvider.Advisory.LastMode.Should().Be(DistributedLockMode.Shared);
+    }
+
+    [Fact]
+    public void AcquireDistributedLock_ExplicitSharedMode_IsPassedToProvider()
+    {
+        using var ctx = CreateContext();
+
+        using var handle = ctx.Database.AcquireDistributedLock(
+            "sync-shared-mode",
+            mode: DistributedLockMode.Shared
+        );
+
+        handle.Should().NotBeNull();
+        ctx.LockingProvider.Advisory.LastMode.Should().Be(DistributedLockMode.Shared);
+    }
+
+    [Fact]
+    public void TryAcquireDistributedLock_ExplicitSharedMode_IsPassedToProvider()
+    {
+        using var ctx = CreateContext();
+
+        using var handle = ctx.Database.TryAcquireDistributedLock(
+            "try-sync-shared-mode",
             mode: DistributedLockMode.Shared
         );
 

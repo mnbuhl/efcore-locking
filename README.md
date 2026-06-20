@@ -145,7 +145,7 @@ await using var handle = await ctx.Database.AcquireDistributedLockAsync(
 
 // With cancellation
 await using var handle = await ctx.Database.AcquireDistributedLockAsync(
-    "report:daily", timeout: null, cancellationToken: ct);
+    "report:daily", timeout: null, ct: ct);
 
 // Shared lock where supported
 await using var handle = await ctx.Database.AcquireDistributedLockAsync(

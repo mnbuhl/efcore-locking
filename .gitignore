@@ -16,6 +16,7 @@
 .claude/
 .omc/
 .remember/
+.worktrees/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

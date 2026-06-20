@@ -29,7 +29,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
     {
         ValidateMode(mode);
         var timeoutMs = ToTimeoutMs(timeout);
-        await using var cmd = BuildAcquireCommand(connection, key, timeoutMs);
+        await using var cmd = BuildAcquireCommand(connection, key, timeoutMs, mode);
         await using var reg = ct.Register(static s => ((DbCommand)s!).Cancel(), cmd);
         try
         {
@@ -53,7 +53,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
     )
     {
         ValidateMode(mode);
-        await using var cmd = BuildAcquireCommand(connection, key, timeoutMs: 0);
+        await using var cmd = BuildAcquireCommand(connection, key, timeoutMs: 0, mode);
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         var returnCode = GetReturnCode(cmd);
         if (returnCode == -1)
@@ -72,7 +72,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
     {
         ValidateMode(mode);
         var timeoutMs = ToTimeoutMs(timeout);
-        using var cmd = BuildAcquireCommand(connection, key, timeoutMs);
+        using var cmd = BuildAcquireCommand(connection, key, timeoutMs, mode);
         cmd.ExecuteNonQuery();
         var returnCode = GetReturnCode(cmd);
         return MapReturnCode(returnCode, key, ct: default) ?? BuildHandle(context, connection, key);
@@ -86,7 +86,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
     )
     {
         ValidateMode(mode);
-        using var cmd = BuildAcquireCommand(connection, key, timeoutMs: 0);
+        using var cmd = BuildAcquireCommand(connection, key, timeoutMs: 0, mode);
         cmd.ExecuteNonQuery();
         var returnCode = GetReturnCode(cmd);
         if (returnCode == -1)
@@ -95,14 +95,19 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key);
     }
 
-    private static DbCommand BuildAcquireCommand(DbConnection connection, string key, int timeoutMs)
+    private static DbCommand BuildAcquireCommand(
+        DbConnection connection,
+        string key,
+        int timeoutMs,
+        DistributedLockMode mode
+    )
     {
         var cmd = connection.CreateCommand();
         cmd.CommandType = CommandType.StoredProcedure;
         cmd.CommandText = "sp_getapplock";
 
         AddParam(cmd, "@Resource", key);
-        AddParam(cmd, "@LockMode", "Exclusive");
+        AddParam(cmd, "@LockMode", ToSqlServerLockMode(mode));
         AddParam(cmd, "@LockOwner", "Session");
         AddParam(cmd, "@LockTimeout", timeoutMs);
         AddParam(cmd, "@DbPrincipal", "public");
@@ -171,20 +176,15 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return (int)Math.Min(ms, int.MaxValue);
     }
 
-    public void ValidateMode(DistributedLockMode mode)
-    {
-        switch (mode)
+    public void ValidateMode(DistributedLockMode mode) => _ = ToSqlServerLockMode(mode);
+
+    private static string ToSqlServerLockMode(DistributedLockMode mode) =>
+        mode switch
         {
-            case DistributedLockMode.Exclusive:
-                return;
-            case DistributedLockMode.Shared:
-                throw new LockingConfigurationException(
-                    "Shared distributed locks are not implemented yet for the SQL Server provider."
-                );
-            default:
-                throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'.");
-        }
-    }
+            DistributedLockMode.Exclusive => "Exclusive",
+            DistributedLockMode.Shared => "Shared",
+            _ => throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'."),
+        };
 
     private static void AddParam(DbCommand cmd, string name, object value)
     {

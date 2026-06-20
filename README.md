@@ -147,6 +147,10 @@ await using var handle = await ctx.Database.AcquireDistributedLockAsync(
 await using var handle = await ctx.Database.AcquireDistributedLockAsync(
     "report:daily", timeout: null, cancellationToken: ct);
 
+// Shared lock where supported
+await using var handle = await ctx.Database.AcquireDistributedLockAsync(
+    "catalog:read", mode: DistributedLockMode.Shared);
+
 // Non-blocking — returns null immediately if held
 var handle = await ctx.Database.TryAcquireDistributedLockAsync("invoice:generate");
 if (handle is null)
@@ -174,8 +178,11 @@ Keys are plain strings, up to **255 characters**. Provider-specific encoding is 
 | Feature | PostgreSQL | MySQL | SQL Server |
 |---------|-----------|-------|-----------|
 | Native primitive | `pg_advisory_lock` | `GET_LOCK` | `sp_getapplock @LockOwner='Session'` |
+| Shared distributed locks | `pg_advisory_lock_shared` | Not supported by `GET_LOCK` | `sp_getapplock @LockMode='Shared'` |
 | Timeout | `SET LOCAL lock_timeout` (ms) | `GET_LOCK(@key, seconds)` — rounded up to 1 s | `@LockTimeout` ms |
 | Cancellation | Driver-level (best-effort) | `KILL QUERY` side-channel | Attention signal |
+
+MySQL distributed locks use `GET_LOCK`, which is exclusive-only. Requesting `DistributedLockMode.Shared` on MySQL throws `LockingConfigurationException`.
 
 Advisory lock SQL is a blocking database call. Cancellation is a best-effort signal to the driver; if the driver does not honor it before the timeout fires, the call completes via timeout. Combine a `timeout` with the `CancellationToken` for bounded waits.
 

@@ -214,6 +214,7 @@ public static class DatabaseFacadeDistributedLockExtensions
         ValidateMode(mode);
         var ctx = GetContext(database);
         var provider = ResolveProvider(database);
+        provider.ValidateMode(mode);
         var connection = database.GetDbConnection();
         bool openedByMe = false;
         if (connection.State != ConnectionState.Open)
@@ -235,6 +236,7 @@ public static class DatabaseFacadeDistributedLockExtensions
         ValidateMode(mode);
         var ctx = GetContext(database);
         var provider = ResolveProvider(database);
+        provider.ValidateMode(mode);
         var connection = database.GetDbConnection();
         bool openedByMe = false;
         if (connection.State != ConnectionState.Open)

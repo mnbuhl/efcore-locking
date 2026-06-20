@@ -171,7 +171,7 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return (int)Math.Min(ms, int.MaxValue);
     }
 
-    private static void ValidateMode(DistributedLockMode mode)
+    public void ValidateMode(DistributedLockMode mode)
     {
         switch (mode)
         {

@@ -157,7 +157,7 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
     }
 
-    private static void ValidateMode(DistributedLockMode mode)
+    public void ValidateMode(DistributedLockMode mode)
     {
         switch (mode)
         {

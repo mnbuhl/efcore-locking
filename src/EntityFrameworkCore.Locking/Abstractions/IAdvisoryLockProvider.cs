@@ -1,4 +1,5 @@
 using System.Data.Common;
+using EntityFrameworkCore.Locking.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
 namespace EntityFrameworkCore.Locking.Abstractions;
@@ -9,6 +10,13 @@ namespace EntityFrameworkCore.Locking.Abstractions;
 /// </summary>
 public interface IAdvisoryLockProvider
 {
+    /// <summary>Validates that the provider supports the requested distributed lock mode.</summary>
+    /// <param name="mode">The distributed lock mode requested by the caller.</param>
+    /// <exception cref="LockingConfigurationException">
+    /// Thrown when the requested mode is not supported by the provider.
+    /// </exception>
+    void ValidateMode(DistributedLockMode mode);
+
     /// <summary>Acquires an advisory lock asynchronously, waiting until it is available.</summary>
     /// <param name="context">The DbContext that owns the lock registration.</param>
     /// <param name="connection">The database connection that will hold the session-scoped lock.</param>

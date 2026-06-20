@@ -191,6 +191,20 @@ public class DistributedLockUnitTests
     }
 
     [Fact]
+    public async Task AcquireDistributedLockAsync_ProviderRejectedMode_DoesNotOpenConnection()
+    {
+        var fakeConn = new FakeDbConnection(ConnectionState.Closed, throwOnOpen: true);
+        var fakeProvider = new FakeLockingProvider(new FakeAdvisoryLockProvider(rejectShared: true));
+        await using var ctx = CreateContext(fakeConn, fakeProvider);
+
+        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
+            ctx.Database.AcquireDistributedLockAsync("provider-rejected-mode", mode: DistributedLockMode.Shared)
+        );
+
+        fakeConn.OpenCount.Should().Be(0);
+    }
+
+    [Fact]
     public void AcquireDistributedLock_ExplicitSharedMode_IsPassedToProvider()
     {
         using var ctx = CreateContext();
@@ -220,10 +234,13 @@ public class DistributedLockUnitTests
 
     // --- Factory ---
 
-    private static FakeDbContext CreateContext()
+    private static FakeDbContext CreateContext(
+        FakeDbConnection? fakeConn = null,
+        FakeLockingProvider? fakeProvider = null
+    )
     {
-        var fakeConn = new FakeDbConnection();
-        var fakeProvider = new FakeLockingProvider();
+        fakeConn ??= new FakeDbConnection();
+        fakeProvider ??= new FakeLockingProvider();
 
         var options = new DbContextOptionsBuilder<FakeDbContext>()
             .UseSqlServer(fakeConn)
@@ -257,18 +274,39 @@ internal sealed class FakeDbContext : DbContext
 
 internal sealed class FakeDbConnection : DbConnection
 {
+    private readonly bool _throwOnOpen;
+    private ConnectionState _state;
+
+    public FakeDbConnection(ConnectionState state = ConnectionState.Open, bool throwOnOpen = false)
+    {
+        _state = state;
+        _throwOnOpen = throwOnOpen;
+    }
+
     [System.Diagnostics.CodeAnalysis.AllowNull]
     public override string ConnectionString { get; set; } = "Fake";
     public override string Database => "Fake";
     public override string DataSource => "Fake";
     public override string ServerVersion => "0.0";
-    public override ConnectionState State => ConnectionState.Open;
+    public override ConnectionState State => _state;
 
-    public override void Open() { }
+    public int OpenCount { get; private set; }
 
-    public override void Close() { }
+    public override void Open()
+    {
+        OpenCount++;
+        if (_throwOnOpen)
+            throw new InvalidOperationException("Fake connection should not be opened.");
+        _state = ConnectionState.Open;
+    }
 
-    public override Task OpenAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public override void Close() => _state = ConnectionState.Closed;
+
+    public override Task OpenAsync(CancellationToken cancellationToken)
+    {
+        Open();
+        return Task.CompletedTask;
+    }
 
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) =>
         throw new NotSupportedException();
@@ -282,7 +320,12 @@ internal sealed class FakeDbConnection : DbConnection
 
 internal sealed class FakeLockingProvider : ILockingProvider
 {
-    private readonly FakeAdvisoryLockProvider _advisory = new();
+    private readonly FakeAdvisoryLockProvider _advisory;
+
+    public FakeLockingProvider(FakeAdvisoryLockProvider? advisory = null)
+    {
+        _advisory = advisory ?? new FakeAdvisoryLockProvider();
+    }
 
     public FakeAdvisoryLockProvider Advisory => _advisory;
     public ILockSqlGenerator RowLockGenerator { get; } = new FakeLockSqlGenerator();
@@ -312,8 +355,31 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
     // Tracks which keys are held per connection (simulates session-scoped locks)
     private readonly Dictionary<DbConnection, HashSet<string>> _held = new();
     private readonly object _gate = new();
+    private readonly bool _rejectShared;
+
+    public FakeAdvisoryLockProvider(bool rejectShared = false)
+    {
+        _rejectShared = rejectShared;
+    }
 
     public DistributedLockMode LastMode { get; private set; }
+
+    public void ValidateMode(DistributedLockMode mode)
+    {
+        switch (mode)
+        {
+            case DistributedLockMode.Exclusive:
+                return;
+            case DistributedLockMode.Shared when !_rejectShared:
+                return;
+            case DistributedLockMode.Shared:
+                throw new LockingConfigurationException(
+                    "Shared distributed locks are not supported by the fake provider."
+                );
+            default:
+                throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'.");
+        }
+    }
 
     public Task<IDistributedLockHandle> AcquireAsync(
         DbContext context,
@@ -324,6 +390,7 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         LastMode = mode;
         var handle = CreateHandle(context, connection, key);
         return Task.FromResult(handle);
@@ -337,6 +404,7 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         LastMode = mode;
         IDistributedLockHandle? handle;
         lock (_gate)
@@ -361,6 +429,7 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         LastMode = mode;
         return CreateHandle(context, connection, key);
     }
@@ -372,6 +441,7 @@ internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
         DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         LastMode = mode;
         lock (_gate)
         {

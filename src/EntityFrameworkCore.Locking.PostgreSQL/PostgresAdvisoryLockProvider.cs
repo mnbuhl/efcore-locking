@@ -171,7 +171,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key, lockKey);
     }
 
-    private static void ValidateMode(DistributedLockMode mode)
+    public void ValidateMode(DistributedLockMode mode)
     {
         switch (mode)
         {

@@ -15,6 +15,61 @@ public class DistributedLockIntegrationTests(SqlServerFixture fixture) : Distrib
     // --- SqlServer-specific ---
 
     [Fact]
+    public async Task SharedLocks_TwoContexts_CanHoldSameKeyConcurrently()
+    {
+        var key = $"ss-shared-concurrent-{Guid.NewGuid():N}";
+
+        await using var ctxA = CreateContext();
+        var sharedA = await ctxA.Database.AcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+
+        await using var ctxB = CreateContext();
+        var sharedB = await ctxB.Database.TryAcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+
+        sharedB.Should().NotBeNull();
+
+        await sharedB!.DisposeAsync();
+        await sharedA.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task SharedLock_BlocksExclusiveTryAcquireUntilReleased()
+    {
+        var key = $"ss-shared-blocks-exclusive-{Guid.NewGuid():N}";
+
+        await using var ctxA = CreateContext();
+        var shared = await ctxA.Database.AcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+
+        await using var ctxB = CreateContext();
+        var blockedExclusive = await ctxB.Database.TryAcquireDistributedLockAsync(key);
+        blockedExclusive.Should().BeNull();
+
+        await shared.DisposeAsync();
+
+        var exclusive = await ctxB.Database.TryAcquireDistributedLockAsync(key);
+        exclusive.Should().NotBeNull();
+        await exclusive!.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ExclusiveLock_BlocksSharedTryAcquireUntilReleased()
+    {
+        var key = $"ss-exclusive-blocks-shared-{Guid.NewGuid():N}";
+
+        await using var ctxA = CreateContext();
+        var exclusive = await ctxA.Database.AcquireDistributedLockAsync(key);
+
+        await using var ctxB = CreateContext();
+        var blockedShared = await ctxB.Database.TryAcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+        blockedShared.Should().BeNull();
+
+        await exclusive.DisposeAsync();
+
+        var shared = await ctxB.Database.TryAcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+        shared.Should().NotBeNull();
+        await shared!.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Acquire_Cancelled_WithTimeout_Throws()
     {
         const string key = "ss-cancel-timeout";

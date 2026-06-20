@@ -27,13 +27,13 @@ public class DistributedLockIntegrationTests(PostgresFixture fixture) : Distribu
 
         sharedB.Should().NotBeNull();
 
-        await sharedB!.DisposeAsync();
+        await sharedB.DisposeAsync();
         await sharedA.DisposeAsync();
 
         await using var ctxC = CreateContext();
         var exclusive = await ctxC.Database.TryAcquireDistributedLockAsync(key);
         exclusive.Should().NotBeNull("all shared handles should release using shared unlock semantics");
-        await exclusive!.DisposeAsync();
+        await exclusive.DisposeAsync();
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class DistributedLockIntegrationTests(PostgresFixture fixture) : Distribu
 
         var exclusive = await ctxB.Database.TryAcquireDistributedLockAsync(key);
         exclusive.Should().NotBeNull();
-        await exclusive!.DisposeAsync();
+        await exclusive.DisposeAsync();
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class DistributedLockIntegrationTests(PostgresFixture fixture) : Distribu
 
         var shared = await ctxB.Database.TryAcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
         shared.Should().NotBeNull();
-        await shared!.DisposeAsync();
+        await shared.DisposeAsync();
     }
 
     [Fact]

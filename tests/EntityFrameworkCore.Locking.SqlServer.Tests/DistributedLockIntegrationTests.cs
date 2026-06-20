@@ -27,7 +27,7 @@ public class DistributedLockIntegrationTests(SqlServerFixture fixture) : Distrib
 
         sharedB.Should().NotBeNull();
 
-        await sharedB!.DisposeAsync();
+        await sharedB.DisposeAsync();
         await sharedA.DisposeAsync();
     }
 
@@ -47,7 +47,7 @@ public class DistributedLockIntegrationTests(SqlServerFixture fixture) : Distrib
 
         var exclusive = await ctxB.Database.TryAcquireDistributedLockAsync(key);
         exclusive.Should().NotBeNull();
-        await exclusive!.DisposeAsync();
+        await exclusive.DisposeAsync();
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class DistributedLockIntegrationTests(SqlServerFixture fixture) : Distrib
 
         var shared = await ctxB.Database.TryAcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
         shared.Should().NotBeNull();
-        await shared!.DisposeAsync();
+        await shared.DisposeAsync();
     }
 
     [Fact]

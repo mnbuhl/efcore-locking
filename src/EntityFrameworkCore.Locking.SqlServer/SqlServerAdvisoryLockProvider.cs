@@ -23,7 +23,8 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         DbConnection connection,
         string key,
         TimeSpan? timeout,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
         var timeoutMs = ToTimeoutMs(timeout);
@@ -46,7 +47,8 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         DbContext context,
         DbConnection connection,
         string key,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
         await using var cmd = BuildAcquireCommand(connection, key, timeoutMs: 0);
@@ -58,7 +60,13 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key);
     }
 
-    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout)
+    public IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        DistributedLockMode mode
+    )
     {
         var timeoutMs = ToTimeoutMs(timeout);
         using var cmd = BuildAcquireCommand(connection, key, timeoutMs);
@@ -67,7 +75,12 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return MapReturnCode(returnCode, key, ct: default) ?? BuildHandle(context, connection, key);
     }
 
-    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
+    public IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        DistributedLockMode mode
+    )
     {
         using var cmd = BuildAcquireCommand(connection, key, timeoutMs: 0);
         cmd.ExecuteNonQuery();

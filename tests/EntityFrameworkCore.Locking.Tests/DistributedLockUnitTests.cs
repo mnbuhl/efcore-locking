@@ -55,6 +55,16 @@ public class DistributedLockUnitTests
     }
 
     [Fact]
+    public async Task AcquireDistributedLockAsync_InvalidMode_ThrowsLockingConfigurationException()
+    {
+        await using var ctx = CreateContext();
+
+        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
+            ctx.Database.AcquireDistributedLockAsync("invalid-mode", mode: (DistributedLockMode)999)
+        );
+    }
+
+    [Fact]
     public async Task AcquireDistributedLockAsync_MaxKey255_Accepted()
     {
         await using var ctx = CreateContext();

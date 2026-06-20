@@ -32,7 +32,8 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         DbConnection connection,
         string key,
         TimeSpan? timeout,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
         var encodedKey = EncodeKey(key);
@@ -60,7 +61,8 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         DbContext context,
         DbConnection connection,
         string key,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
         var encodedKey = EncodeKey(key);
@@ -76,7 +78,13 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         return result is 1L or 1 ? BuildHandle(context, connection, key, encodedKey) : null;
     }
 
-    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout)
+    public IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        DistributedLockMode mode
+    )
     {
         var encodedKey = EncodeKey(key);
         var timeoutSeconds = timeout.HasValue ? (long)Math.Ceiling(timeout.Value.TotalSeconds) : -1L;
@@ -97,7 +105,12 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         };
     }
 
-    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
+    public IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        DistributedLockMode mode
+    )
     {
         var encodedKey = EncodeKey(key);
         using var cmd = connection.CreateCommand();

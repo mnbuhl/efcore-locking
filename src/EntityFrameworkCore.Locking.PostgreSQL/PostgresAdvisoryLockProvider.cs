@@ -26,7 +26,8 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         DbConnection connection,
         string key,
         TimeSpan? timeout,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
         var lockKey = ComputeKey(key);
@@ -84,7 +85,8 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         DbContext context,
         DbConnection connection,
         string key,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
         var lockKey = ComputeKey(key);
@@ -97,7 +99,13 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key, lockKey);
     }
 
-    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout)
+    public IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        DistributedLockMode mode
+    )
     {
         var lockKey = ComputeKey(key);
         try
@@ -142,7 +150,12 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key, lockKey);
     }
 
-    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
+    public IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        DistributedLockMode mode
+    )
     {
         var lockKey = ComputeKey(key);
         using var cmd = connection.CreateCommand();

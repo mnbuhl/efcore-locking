@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.MySql.Tests.Fixtures;
 using EntityFrameworkCore.Locking.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,19 @@ public class DistributedLockIntegrationTests(MySqlFixture fixture) : Distributed
         );
 
     // --- MySQL-specific ---
+
+    [Fact]
+    public async Task SharedMode_ThrowsLockingConfigurationException()
+    {
+        await using var ctx = CreateContext();
+
+        Func<Task> act = () =>
+            ctx.Database.AcquireDistributedLockAsync("mysql-shared-unsupported", mode: DistributedLockMode.Shared);
+
+        await act.Should()
+            .ThrowAsync<LockingConfigurationException>()
+            .WithMessage("*GET_LOCK*shared distributed locks*");
+    }
 
     [Fact]
     public async Task LongKey_ExceededMysqlLimit_HashesCorrectly()

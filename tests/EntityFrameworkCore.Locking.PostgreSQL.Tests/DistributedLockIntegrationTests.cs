@@ -15,6 +15,66 @@ public class DistributedLockIntegrationTests(PostgresFixture fixture) : Distribu
     // --- PG-specific ---
 
     [Fact]
+    public async Task SharedLocks_TwoContexts_CanHoldSameKeyConcurrently()
+    {
+        var key = $"pg-shared-concurrent-{Guid.NewGuid():N}";
+
+        await using var ctxA = CreateContext();
+        var sharedA = await ctxA.Database.AcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+
+        await using var ctxB = CreateContext();
+        var sharedB = await ctxB.Database.TryAcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+
+        sharedB.Should().NotBeNull();
+
+        await sharedB.DisposeAsync();
+        await sharedA.DisposeAsync();
+
+        await using var ctxC = CreateContext();
+        var exclusive = await ctxC.Database.TryAcquireDistributedLockAsync(key);
+        exclusive.Should().NotBeNull("all shared handles should release using shared unlock semantics");
+        await exclusive.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task SharedLock_BlocksExclusiveTryAcquireUntilReleased()
+    {
+        var key = $"pg-shared-blocks-exclusive-{Guid.NewGuid():N}";
+
+        await using var ctxA = CreateContext();
+        var shared = await ctxA.Database.AcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+
+        await using var ctxB = CreateContext();
+        var blockedExclusive = await ctxB.Database.TryAcquireDistributedLockAsync(key);
+        blockedExclusive.Should().BeNull();
+
+        await shared.DisposeAsync();
+
+        var exclusive = await ctxB.Database.TryAcquireDistributedLockAsync(key);
+        exclusive.Should().NotBeNull();
+        await exclusive.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ExclusiveLock_BlocksSharedTryAcquireUntilReleased()
+    {
+        var key = $"pg-exclusive-blocks-shared-{Guid.NewGuid():N}";
+
+        await using var ctxA = CreateContext();
+        var exclusive = await ctxA.Database.AcquireDistributedLockAsync(key);
+
+        await using var ctxB = CreateContext();
+        var blockedShared = await ctxB.Database.TryAcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+        blockedShared.Should().BeNull();
+
+        await exclusive.DisposeAsync();
+
+        var shared = await ctxB.Database.TryAcquireDistributedLockAsync(key, mode: DistributedLockMode.Shared);
+        shared.Should().NotBeNull();
+        await shared.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Acquire_Contested_BlocksUntilReleased()
     {
         const string key = "pg-block-key";

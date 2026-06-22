@@ -32,9 +32,11 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         DbConnection connection,
         string key,
         TimeSpan? timeout,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var encodedKey = EncodeKey(key);
         var timeoutSeconds = timeout.HasValue ? (long)Math.Ceiling(timeout.Value.TotalSeconds) : -1L;
 
@@ -60,9 +62,11 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         DbContext context,
         DbConnection connection,
         string key,
-        CancellationToken ct
+        CancellationToken ct,
+        DistributedLockMode mode
     )
     {
+        ValidateMode(mode);
         var encodedKey = EncodeKey(key);
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT GET_LOCK(@key, 0)";
@@ -76,8 +80,15 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         return result is 1L or 1 ? BuildHandle(context, connection, key, encodedKey) : null;
     }
 
-    public IDistributedLockHandle Acquire(DbContext context, DbConnection connection, string key, TimeSpan? timeout)
+    public IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        DistributedLockMode mode
+    )
     {
+        ValidateMode(mode);
         var encodedKey = EncodeKey(key);
         var timeoutSeconds = timeout.HasValue ? (long)Math.Ceiling(timeout.Value.TotalSeconds) : -1L;
 
@@ -97,8 +108,14 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         };
     }
 
-    public IDistributedLockHandle? TryAcquire(DbContext context, DbConnection connection, string key)
+    public IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        DistributedLockMode mode
+    )
     {
+        ValidateMode(mode);
         var encodedKey = EncodeKey(key);
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT GET_LOCK(@key, 0)";
@@ -138,6 +155,19 @@ internal sealed class MySqlAdvisoryLockProvider : IAdvisoryLockProvider
         }
 
         return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
+    }
+
+    public void ValidateMode(DistributedLockMode mode)
+    {
+        switch (mode)
+        {
+            case DistributedLockMode.Exclusive:
+                return;
+            case DistributedLockMode.Shared:
+                throw new LockingConfigurationException("MySQL GET_LOCK does not support shared distributed locks.");
+            default:
+                throw new LockingConfigurationException($"Unsupported distributed lock mode '{mode}'.");
+        }
     }
 
     private static void AddParam(DbCommand cmd, string name, object value)

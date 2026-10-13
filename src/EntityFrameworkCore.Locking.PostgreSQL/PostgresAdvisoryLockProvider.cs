@@ -65,10 +65,6 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
                 await lockCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
             }
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
         catch (PostgresException ex) when (ex.SqlState is "55P03" or "57014")
         {
             throw new LockTimeoutException($"Timed out waiting for distributed lock '{key}'.", ex);
@@ -258,82 +254,14 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         if (scope == DistributedLockScope.Session)
             return await AcquireAsync(context, connection, key, timeout, ct, mode).ConfigureAwait(false);
         ValidateScope(scope);
-        await AcquireTransactionAsync(context, connection, key, timeout, ct, mode).ConfigureAwait(false);
-        return new TransactionDistributedLockResult(key, true);
-    }
-
-    public async Task<IDistributedLockHandle?> TryAcquireAsync(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        CancellationToken ct,
-        DistributedLockMode mode,
-        DistributedLockScope scope
-    )
-    {
-        if (scope == DistributedLockScope.Session)
-            return await TryAcquireAsync(context, connection, key, ct, mode).ConfigureAwait(false);
-        ValidateScope(scope);
-        var acquired = await TryAcquireTransactionAsync(context, connection, key, ct, mode).ConfigureAwait(false);
-        return new TransactionDistributedLockResult(key, acquired);
-    }
-
-    public IDistributedLockHandle Acquire(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        TimeSpan? timeout,
-        DistributedLockMode mode,
-        DistributedLockScope scope
-    )
-    {
-        if (scope == DistributedLockScope.Session)
-            return Acquire(context, connection, key, timeout, mode);
-        ValidateScope(scope);
-        AcquireTransaction(context, connection, key, timeout, mode);
-        return new TransactionDistributedLockResult(key, true);
-    }
-
-    public IDistributedLockHandle? TryAcquire(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        DistributedLockMode mode,
-        DistributedLockScope scope
-    )
-    {
-        if (scope == DistributedLockScope.Session)
-            return TryAcquire(context, connection, key, mode);
-        ValidateScope(scope);
-        return new TransactionDistributedLockResult(key, TryAcquireTransaction(context, connection, key, mode));
-    }
-
-    private static void ValidateScope(DistributedLockScope scope)
-    {
-        if (scope != DistributedLockScope.Transaction)
-            throw new LockingConfigurationException($"Unsupported distributed lock scope '{scope}'.");
-    }
-
-    // After timeout setup, failures require caller rollback, including cancellation before dispatch.
-    // No recovery SQL is issued on a failed or uncertain transaction.
-    private const int SetupTimeoutSeconds = 30;
-
-    private async Task AcquireTransactionAsync(
-        DbContext context,
-        DbConnection connection,
-        string key,
-        TimeSpan? timeout,
-        CancellationToken ct,
-        DistributedLockMode mode
-    )
-    {
         ValidateMode(mode);
         var milliseconds = TransactionDistributedLockTimeout.ToMilliseconds(timeout);
         if (milliseconds == 0)
         {
-            if (!await TryAcquireTransactionAsync(context, connection, key, ct, mode).ConfigureAwait(false))
+            var result = await TryAcquireAsync(context, connection, key, ct, mode, scope).ConfigureAwait(false);
+            if (!result!.IsAcquired)
                 throw new LockTimeoutException($"Timed out waiting for transaction distributed lock '{key}'.");
-            return;
+            return result;
         }
 
         ct.ThrowIfCancellationRequested();
@@ -372,23 +300,57 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         {
             throw Translate(ex, key, ct);
         }
+        return new TransactionDistributedLockResult(key, true);
     }
 
-    private void AcquireTransaction(
+    public async Task<IDistributedLockHandle?> TryAcquireAsync(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        CancellationToken ct,
+        DistributedLockMode mode,
+        DistributedLockScope scope
+    )
+    {
+        if (scope == DistributedLockScope.Session)
+            return await TryAcquireAsync(context, connection, key, ct, mode).ConfigureAwait(false);
+        ValidateScope(scope);
+        ValidateMode(mode);
+        ct.ThrowIfCancellationRequested();
+        try
+        {
+            await using var command = CreateTransactionLockCommand(context, connection, key, mode, tryAcquire: true);
+            return new TransactionDistributedLockResult(
+                key,
+                ReadOutcome(await command.ExecuteScalarAsync(ct).ConfigureAwait(false), key)
+            );
+        }
+        catch (PostgresException ex)
+        {
+            throw Translate(ex, key, ct);
+        }
+    }
+
+    public IDistributedLockHandle Acquire(
         DbContext context,
         DbConnection connection,
         string key,
         TimeSpan? timeout,
-        DistributedLockMode mode
+        DistributedLockMode mode,
+        DistributedLockScope scope
     )
     {
+        if (scope == DistributedLockScope.Session)
+            return Acquire(context, connection, key, timeout, mode);
+        ValidateScope(scope);
         ValidateMode(mode);
         var milliseconds = TransactionDistributedLockTimeout.ToMilliseconds(timeout);
         if (milliseconds == 0)
         {
-            if (!TryAcquireTransaction(context, connection, key, mode))
+            var result = TryAcquire(context, connection, key, mode, scope);
+            if (!result!.IsAcquired)
                 throw new LockTimeoutException($"Timed out waiting for transaction distributed lock '{key}'.");
-            return;
+            return result;
         }
 
         try
@@ -424,42 +386,41 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         {
             throw Translate(ex, key, CancellationToken.None);
         }
+        return new TransactionDistributedLockResult(key, true);
     }
 
-    private async Task<bool> TryAcquireTransactionAsync(
+    public IDistributedLockHandle? TryAcquire(
         DbContext context,
         DbConnection connection,
         string key,
-        CancellationToken ct,
-        DistributedLockMode mode
+        DistributedLockMode mode,
+        DistributedLockScope scope
     )
     {
-        ValidateMode(mode);
-        ct.ThrowIfCancellationRequested();
-        try
-        {
-            await using var command = CreateTransactionLockCommand(context, connection, key, mode, tryAcquire: true);
-            return ReadOutcome(await command.ExecuteScalarAsync(ct).ConfigureAwait(false), key);
-        }
-        catch (PostgresException ex)
-        {
-            throw Translate(ex, key, ct);
-        }
-    }
-
-    private bool TryAcquireTransaction(DbContext context, DbConnection connection, string key, DistributedLockMode mode)
-    {
+        if (scope == DistributedLockScope.Session)
+            return TryAcquire(context, connection, key, mode);
+        ValidateScope(scope);
         ValidateMode(mode);
         try
         {
             using var command = CreateTransactionLockCommand(context, connection, key, mode, tryAcquire: true);
-            return ReadOutcome(command.ExecuteScalar(), key);
+            return new TransactionDistributedLockResult(key, ReadOutcome(command.ExecuteScalar(), key));
         }
         catch (PostgresException ex)
         {
             throw Translate(ex, key, CancellationToken.None);
         }
     }
+
+    private static void ValidateScope(DistributedLockScope scope)
+    {
+        if (scope != DistributedLockScope.Transaction)
+            throw new LockingConfigurationException($"Unsupported distributed lock scope '{scope}'.");
+    }
+
+    // After timeout setup, failures require caller rollback, including cancellation before dispatch.
+    // No recovery SQL is issued on a failed or uncertain transaction.
+    private const int SetupTimeoutSeconds = 30;
 
     private static DbCommand CreateCommand(DbContext context, DbConnection connection, string sql)
     {

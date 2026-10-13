@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
+using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -26,25 +27,7 @@ public class TransactionDistributedLockCommandTests
         connection.Results.Enqueue(() => null);
         connection.Results.Enqueue(() => "7s");
 
-        if (async)
-            await _provider.AcquireAsync(
-                context,
-                connection,
-                "resource",
-                TimeSpan.FromTicks(1),
-                default,
-                DistributedLockMode.Shared,
-                DistributedLockScope.Transaction
-            );
-        else
-            _provider.Acquire(
-                context,
-                connection,
-                "resource",
-                TimeSpan.FromTicks(1),
-                DistributedLockMode.Shared,
-                DistributedLockScope.Transaction
-            );
+        await Acquire(async, context, TimeSpan.FromTicks(1), mode: DistributedLockMode.Shared);
 
         Assert.Equal(4, connection.Commands.Count);
         Assert.All(connection.Commands, command => Assert.Same(transaction, command.Transaction));
@@ -74,15 +57,7 @@ public class TransactionDistributedLockCommandTests
         });
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            _provider.AcquireAsync(
-                context,
-                connection,
-                "resource",
-                TimeSpan.FromMilliseconds(25),
-                cancellation.Token,
-                DistributedLockMode.Exclusive,
-                DistributedLockScope.Transaction
-            )
+            Acquire(true, context, TimeSpan.FromMilliseconds(25), ct: cancellation.Token)
         );
 
         Assert.Equal(2, connection.Commands.Count);
@@ -106,17 +81,7 @@ public class TransactionDistributedLockCommandTests
         connection.Results.Enqueue(() => "25ms");
         connection.Results.Enqueue(() => throw failure);
 
-        var error = await Record.ExceptionAsync(() =>
-            _provider.AcquireAsync(
-                context,
-                connection,
-                "resource",
-                TimeSpan.FromMilliseconds(25),
-                default,
-                DistributedLockMode.Exclusive,
-                DistributedLockScope.Transaction
-            )
-        );
+        var error = await Record.ExceptionAsync(() => Acquire(true, context, TimeSpan.FromMilliseconds(25)));
 
         Assert.IsType(expected, error);
         Assert.Same(failure, error.InnerException);
@@ -138,15 +103,7 @@ public class TransactionDistributedLockCommandTests
         });
         connection.Results.Enqueue(() => "5s");
 
-        await _provider.AcquireAsync(
-            context,
-            connection,
-            "resource",
-            TimeSpan.FromMilliseconds(25),
-            cancellation.Token,
-            DistributedLockMode.Exclusive,
-            DistributedLockScope.Transaction
-        );
+        await Acquire(true, context, TimeSpan.FromMilliseconds(25), ct: cancellation.Token);
 
         var cleanup = connection.Commands[3];
         Assert.True(cleanup.Token.CanBeCanceled);
@@ -162,25 +119,7 @@ public class TransactionDistributedLockCommandTests
         using var connection = new RecordingConnection();
         using var context = CreateContext(connection);
         connection.Results.Enqueue(() => null);
-        if (async)
-            await _provider.AcquireAsync(
-                context,
-                connection,
-                "resource",
-                null,
-                default,
-                DistributedLockMode.Exclusive,
-                DistributedLockScope.Transaction
-            );
-        else
-            _provider.Acquire(
-                context,
-                connection,
-                "resource",
-                null,
-                DistributedLockMode.Exclusive,
-                DistributedLockScope.Transaction
-            );
+        await Acquire(async, context, null);
         var command = Assert.Single(connection.Commands);
         Assert.Equal("SELECT pg_advisory_xact_lock($1)", command.Sql);
         Assert.Equal(0, command.Timeout);
@@ -197,22 +136,7 @@ public class TransactionDistributedLockCommandTests
         using var connection = new RecordingConnection();
         using var context = CreateContext(connection);
         connection.Results.Enqueue(() => outcome);
-        var result = async
-            ? await _provider.TryAcquireAsync(
-                context,
-                connection,
-                "resource",
-                default,
-                DistributedLockMode.Shared,
-                DistributedLockScope.Transaction
-            )
-            : _provider.TryAcquire(
-                context,
-                connection,
-                "resource",
-                DistributedLockMode.Shared,
-                DistributedLockScope.Transaction
-            );
+        var result = await TryAcquire(async, context, mode: DistributedLockMode.Shared);
         Assert.NotNull(result);
         Assert.Equal(outcome, result.IsAcquired);
         var command = Assert.Single(connection.Commands);
@@ -229,26 +153,12 @@ public class TransactionDistributedLockCommandTests
         using var connection = new RecordingConnection();
         using var context = CreateContext(connection);
         connection.Results.Enqueue(() => result);
-        await Assert.ThrowsAsync<LockAcquisitionFailedException>(() =>
-            _provider.TryAcquireAsync(
-                context,
-                connection,
-                "resource",
-                default,
-                DistributedLockMode.Exclusive,
-                DistributedLockScope.Transaction
-            )
-        );
+        await Assert.ThrowsAsync<LockAcquisitionFailedException>(() => TryAcquire(true, context));
         connection.Results.Enqueue(() => result);
         Assert.Throws<LockAcquisitionFailedException>(() =>
-            _provider.TryAcquire(
-                context,
-                connection,
-                "resource",
-                DistributedLockMode.Exclusive,
-                DistributedLockScope.Transaction
-            )
-        );
+        {
+            _ = TryAcquire(false, context);
+        });
     }
 
     [Theory]
@@ -260,28 +170,12 @@ public class TransactionDistributedLockCommandTests
         using var context = CreateContext(connection);
         connection.Results.Enqueue(() => false);
         if (async)
-            await Assert.ThrowsAsync<LockTimeoutException>(() =>
-                _provider.AcquireAsync(
-                    context,
-                    connection,
-                    "resource",
-                    TimeSpan.Zero,
-                    default,
-                    DistributedLockMode.Exclusive,
-                    DistributedLockScope.Transaction
-                )
-            );
+            await Assert.ThrowsAsync<LockTimeoutException>(() => Acquire(true, context, TimeSpan.Zero));
         else
             Assert.Throws<LockTimeoutException>(() =>
-                _provider.Acquire(
-                    context,
-                    connection,
-                    "resource",
-                    TimeSpan.Zero,
-                    DistributedLockMode.Exclusive,
-                    DistributedLockScope.Transaction
-                )
-            );
+            {
+                _ = Acquire(false, context, TimeSpan.Zero);
+            });
         Assert.Equal("SELECT pg_try_advisory_xact_lock($1)", Assert.Single(connection.Commands).Sql);
     }
 
@@ -296,19 +190,64 @@ public class TransactionDistributedLockCommandTests
         connection.Results.Enqueue(() => null);
         connection.Results.Enqueue(() => throw failure);
         var error = await Assert.ThrowsAsync<LockAcquisitionFailedException>(() =>
-            _provider.AcquireAsync(
-                context,
-                connection,
-                "resource",
-                TimeSpan.FromMilliseconds(25),
-                default,
-                DistributedLockMode.Exclusive,
-                DistributedLockScope.Transaction
-            )
+            Acquire(true, context, TimeSpan.FromMilliseconds(25))
         );
         Assert.Same(failure, error.InnerException);
         Assert.Contains("roll back", error.Message, StringComparison.Ordinal);
     }
+
+    private Task<IDistributedLockHandle> Acquire(
+        bool async,
+        DbContext context,
+        TimeSpan? timeout,
+        DistributedLockMode mode = DistributedLockMode.Exclusive,
+        CancellationToken ct = default
+    ) =>
+        async
+            ? _provider.AcquireAsync(
+                context,
+                context.Database.GetDbConnection(),
+                "resource",
+                timeout,
+                ct,
+                mode,
+                DistributedLockScope.Transaction
+            )
+            : Task.FromResult(
+                _provider.Acquire(
+                    context,
+                    context.Database.GetDbConnection(),
+                    "resource",
+                    timeout,
+                    mode,
+                    DistributedLockScope.Transaction
+                )
+            );
+
+    private Task<IDistributedLockHandle?> TryAcquire(
+        bool async,
+        DbContext context,
+        DistributedLockMode mode = DistributedLockMode.Exclusive,
+        CancellationToken ct = default
+    ) =>
+        async
+            ? _provider.TryAcquireAsync(
+                context,
+                context.Database.GetDbConnection(),
+                "resource",
+                ct,
+                mode,
+                DistributedLockScope.Transaction
+            )
+            : Task.FromResult(
+                _provider.TryAcquire(
+                    context,
+                    context.Database.GetDbConnection(),
+                    "resource",
+                    mode,
+                    DistributedLockScope.Transaction
+                )
+            );
 
     private static DbContext CreateContext(DbConnection connection) =>
         new(new DbContextOptionsBuilder().UseNpgsql(connection).Options);

@@ -35,24 +35,10 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
         for (var attempt = 0; attempt < 2; attempt++)
         {
             var key = $"timeout-setting-{Guid.NewGuid():N}";
-            if (sync)
-                context.Database.AcquireDistributedLock(
-                    key,
-                    TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds),
-                    scope: DistributedLockScope.Transaction
-                );
-            else
-                await context.Database.AcquireDistributedLockAsync(
-                    key,
-                    TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds),
-                    scope: DistributedLockScope.Transaction
-                );
+            await Acquire(context, key, sync, timeout: TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds));
             (await ReadTimeout(context)).Should().Be(previous);
         }
-        await context.Database.AcquireDistributedLockAsync(
-            $"null-timeout-{Guid.NewGuid():N}",
-            scope: DistributedLockScope.Transaction
-        );
+        await Acquire(context, $"null-timeout-{Guid.NewGuid():N}");
         (await ReadTimeout(context)).Should().Be(previous);
     }
 
@@ -80,27 +66,12 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
         // Bound the test even if a regression disables lock_timeout when the caller uses zero.
         await contender.Database.ExecuteSqlRawAsync("SET LOCAL statement_timeout = '10s'");
         var key = $"stricter-timeout-{Guid.NewGuid():N}";
-        await owner.Database.AcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
+        await Acquire(owner, key);
         var elapsed = Stopwatch.StartNew();
 
-        if (sync)
-            Assert.Throws<LockTimeoutException>(() =>
-                contender.Database.AcquireDistributedLock(
-                    key,
-                    TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds),
-                    mode,
-                    scope: DistributedLockScope.Transaction
-                )
-            );
-        else
-            await Assert.ThrowsAsync<LockTimeoutException>(() =>
-                contender.Database.AcquireDistributedLockAsync(
-                    key,
-                    TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds),
-                    mode: mode,
-                    scope: DistributedLockScope.Transaction
-                )
-            );
+        await Assert.ThrowsAsync<LockTimeoutException>(() =>
+            Acquire(contender, key, sync, mode, TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds))
+        );
 
         elapsed.Stop();
         elapsed.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3));
@@ -118,13 +89,9 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
         await contender.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '2s'");
         var key = $"failed-setting-{Guid.NewGuid():N}";
-        await owner.Database.AcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
+        await Acquire(owner, key);
         await Assert.ThrowsAsync<LockTimeoutException>(() =>
-            contender.Database.AcquireDistributedLockAsync(
-                key,
-                TimeSpan.FromMilliseconds(100),
-                scope: DistributedLockScope.Transaction
-            )
+            Acquire(contender, key, timeout: TimeSpan.FromMilliseconds(100))
         );
         await contenderTransaction.RollbackAsync();
         (await ReadTimeout(contender)).Should().Be(sessionSetting);
@@ -141,19 +108,11 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
         await contender.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '2s'");
         var key = $"canceled-setting-{Guid.NewGuid():N}";
-        await owner.Database.AcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeFalse();
+        await Acquire(owner, key);
+        (await Try(contender, key)).IsAcquired.Should().BeFalse();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            contender
-                .Database.AcquireDistributedLockAsync(
-                    key,
-                    TimeSpan.FromSeconds(10),
-                    cancellation.Token,
-                    scope: DistributedLockScope.Transaction
-                )
+            Acquire(contender, key, timeout: TimeSpan.FromSeconds(10), ct: cancellation.Token)
                 .WaitAsync(TimeSpan.FromSeconds(15))
         );
         await contenderTransaction.RollbackAsync();
@@ -169,16 +128,12 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
         await ownerTransaction.CreateSavepointAsync("before_advisory");
         var key = $"savepoint-{Guid.NewGuid():N}";
-        var result = await owner.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
-        result!.IsAcquired.Should().BeTrue();
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeFalse();
+        var result = await Try(owner, key);
+        result.IsAcquired.Should().BeTrue();
+        (await Try(contender, key)).IsAcquired.Should().BeFalse();
         await ownerTransaction.RollbackToSavepointAsync("before_advisory");
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeTrue();
-        result!.IsAcquired.Should().BeTrue("it is an outcome, not current ownership");
+        (await Try(contender, key)).IsAcquired.Should().BeTrue();
+        result.IsAcquired.Should().BeTrue("it is an outcome, not current ownership");
     }
 
     private static async Task<string> ReadTimeout(TestDbContext context)

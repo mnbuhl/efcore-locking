@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
+using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,8 @@ namespace EntityFrameworkCore.Locking.SqlServer.Tests;
 
 public class TransactionDistributedLockCommandTests
 {
+    private readonly SqlServerAdvisoryLockProvider _provider = new();
+
     [Theory]
     [InlineData(false, false, DistributedLockMode.Exclusive)]
     [InlineData(false, true, DistributedLockMode.Shared)]
@@ -25,8 +28,7 @@ public class TransactionDistributedLockCommandTests
         using var context = CreateContext(connection);
         using var transaction = new RecordingTransaction(connection);
         context.Database.UseTransaction(transaction);
-        var provider = new SqlServerAdvisoryLockProvider();
-        await Invoke(provider, context, connection, async, tryAcquire, mode);
+        await Invoke(context, async, tryAcquire, mode);
 
         var command = Assert.Single(connection.Commands);
         Assert.Equal("sp_getapplock", command.CommandText);
@@ -50,7 +52,7 @@ public class TransactionDistributedLockCommandTests
         using var connection = new RecordingConnection();
         using var context = CreateContext(connection);
         // The facade validates ambient enlistment; the provider must let the driver bind it.
-        await new SqlServerAdvisoryLockProvider().AcquireAsync(
+        await _provider.AcquireAsync(
             context,
             connection,
             "key",
@@ -73,7 +75,7 @@ public class TransactionDistributedLockCommandTests
     {
         using var connection = new RecordingConnection { ReturnCode = code };
         using var context = CreateContext(connection);
-        await Invoke(new SqlServerAdvisoryLockProvider(), context, connection, async, tryAcquire);
+        await Invoke(context, async, tryAcquire);
     }
 
     [Theory]
@@ -90,9 +92,7 @@ public class TransactionDistributedLockCommandTests
     {
         using var connection = new RecordingConnection { ReturnCode = code };
         using var context = CreateContext(connection);
-        var error = await Record.ExceptionAsync(() =>
-            Invoke(new SqlServerAdvisoryLockProvider(), context, connection, async, tryAcquire)
-        );
+        var error = await Record.ExceptionAsync(() => Invoke(context, async, tryAcquire));
         Assert.NotNull(error);
         Assert.Equal(exceptionType, error.GetType());
     }
@@ -104,23 +104,7 @@ public class TransactionDistributedLockCommandTests
     {
         using var connection = new RecordingConnection { ReturnCode = -1 };
         using var context = CreateContext(connection);
-        var provider = new SqlServerAdvisoryLockProvider();
-        var result = async
-            ? await provider.TryAcquireAsync(
-                context,
-                connection,
-                "key",
-                default,
-                DistributedLockMode.Exclusive,
-                DistributedLockScope.Transaction
-            )
-            : provider.TryAcquire(
-                context,
-                connection,
-                "key",
-                DistributedLockMode.Exclusive,
-                DistributedLockScope.Transaction
-            );
+        var result = await Invoke(context, async, true, expected: false, key: "key");
         Assert.NotNull(result);
         Assert.False(result.IsAcquired);
     }
@@ -135,7 +119,7 @@ public class TransactionDistributedLockCommandTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            Invoke(new SqlServerAdvisoryLockProvider(), context, connection, true, tryAcquire, ct: cancellation.Token)
+            Invoke(context, true, tryAcquire, ct: cancellation.Token)
         );
         Assert.Empty(connection.Commands);
     }
@@ -153,7 +137,7 @@ public class TransactionDistributedLockCommandTests
         };
         using var context = CreateContext(connection);
         var error = await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            Invoke(new SqlServerAdvisoryLockProvider(), context, connection, true, tryAcquire, ct: cancellation.Token)
+            Invoke(context, true, tryAcquire, ct: cancellation.Token)
         );
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(1, Assert.Single(connection.Commands).CancelCalls);
@@ -169,9 +153,7 @@ public class TransactionDistributedLockCommandTests
         var nativeError = ExceptionTranslationTests.CreateSqlException(1205);
         using var connection = new RecordingConnection { ExecuteException = nativeError };
         using var context = CreateContext(connection);
-        var error = await Assert.ThrowsAsync<DeadlockException>(() =>
-            Invoke(new SqlServerAdvisoryLockProvider(), context, connection, async, tryAcquire)
-        );
+        var error = await Assert.ThrowsAsync<DeadlockException>(() => Invoke(context, async, tryAcquire));
         Assert.Same(nativeError, error.InnerException);
     }
 
@@ -181,9 +163,7 @@ public class TransactionDistributedLockCommandTests
         var nativeError = ExceptionTranslationTests.CreateSqlException(2627);
         using var connection = new RecordingConnection { ExecuteException = nativeError };
         using var context = CreateContext(connection);
-        var error = await Assert.ThrowsAsync<SqlException>(() =>
-            Invoke(new SqlServerAdvisoryLockProvider(), context, connection, true, true)
-        );
+        var error = await Assert.ThrowsAsync<SqlException>(() => Invoke(context, true, true));
         Assert.Same(nativeError, error);
     }
 
@@ -193,13 +173,7 @@ public class TransactionDistributedLockCommandTests
         using var connection = new RecordingConnection();
         using var context = CreateContext(connection);
         Assert.Throws<LockingConfigurationException>(() =>
-            new SqlServerAdvisoryLockProvider().TryAcquire(
-                context,
-                connection,
-                "key",
-                (DistributedLockMode)999,
-                DistributedLockScope.Transaction
-            )
+            _provider.TryAcquire(context, connection, "key", (DistributedLockMode)999, DistributedLockScope.Transaction)
         );
         Assert.Empty(connection.Commands);
     }
@@ -207,57 +181,46 @@ public class TransactionDistributedLockCommandTests
     private static DbContext CreateContext(DbConnection connection) =>
         new(new DbContextOptionsBuilder().UseSqlServer(connection).Options);
 
-    private static async Task Invoke(
-        SqlServerAdvisoryLockProvider provider,
+    private async Task<IDistributedLockHandle?> Invoke(
         DbContext context,
-        DbConnection connection,
         bool async,
         bool tryAcquire,
         DistributedLockMode mode = DistributedLockMode.Exclusive,
-        CancellationToken ct = default
+        CancellationToken ct = default,
+        bool expected = true,
+        string key = "key with spaces"
     )
     {
-        if (async)
+        var connection = context.Database.GetDbConnection();
+        IDistributedLockHandle? result;
+        if (tryAcquire)
         {
-            if (tryAcquire)
-                Assert.True(
-                    (
-                        await provider.TryAcquireAsync(
-                            context,
-                            connection,
-                            "key with spaces",
-                            ct,
-                            mode,
-                            DistributedLockScope.Transaction
-                        )
-                    )!.IsAcquired
-                );
-            else
-                await provider.AcquireAsync(
+            result = async
+                ? await _provider.TryAcquireAsync(context, connection, key, ct, mode, DistributedLockScope.Transaction)
+                : _provider.TryAcquire(context, connection, key, mode, DistributedLockScope.Transaction);
+            Assert.NotNull(result);
+            Assert.Equal(expected, result.IsAcquired);
+        }
+        else
+            result = async
+                ? await _provider.AcquireAsync(
                     context,
                     connection,
-                    "key with spaces",
+                    key,
                     TimeSpan.FromTicks(10001),
                     ct,
                     mode,
                     DistributedLockScope.Transaction
+                )
+                : _provider.Acquire(
+                    context,
+                    connection,
+                    key,
+                    TimeSpan.FromTicks(10001),
+                    mode,
+                    DistributedLockScope.Transaction
                 );
-        }
-        else if (tryAcquire)
-            Assert.True(
-                provider
-                    .TryAcquire(context, connection, "key with spaces", mode, DistributedLockScope.Transaction)!
-                    .IsAcquired
-            );
-        else
-            provider.Acquire(
-                context,
-                connection,
-                "key with spaces",
-                TimeSpan.FromTicks(10001),
-                mode,
-                DistributedLockScope.Transaction
-            );
+        return result;
     }
 
     private sealed class RecordingConnection : DbConnection

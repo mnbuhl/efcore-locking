@@ -23,29 +23,30 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
 
     private static string Key() => $"transaction-{Guid.NewGuid():N}";
 
-    private static Task Acquire(
+    protected static Task<IDistributedLockHandle> Acquire(
         TestDbContext context,
         string key,
-        bool sync,
+        bool sync = false,
         DistributedLockMode mode = DistributedLockMode.Exclusive,
-        TimeSpan? timeout = null
-    )
-    {
-        if (!sync)
-            return context.Database.AcquireDistributedLockAsync(
+        TimeSpan? timeout = null,
+        CancellationToken ct = default
+    ) =>
+        sync
+            ? Task.FromResult(
+                context.Database.AcquireDistributedLock(key, timeout, mode, scope: DistributedLockScope.Transaction)
+            )
+            : context.Database.AcquireDistributedLockAsync(
                 key,
                 timeout,
-                mode: mode,
+                ct,
+                mode,
                 scope: DistributedLockScope.Transaction
             );
-        context.Database.AcquireDistributedLock(key, timeout, mode, scope: DistributedLockScope.Transaction);
-        return Task.CompletedTask;
-    }
 
-    private static async Task<IDistributedLockHandle> Try(
+    protected static async Task<IDistributedLockHandle> Try(
         TestDbContext context,
         string key,
-        bool sync,
+        bool sync = false,
         DistributedLockMode mode = DistributedLockMode.Exclusive
     )
     {
@@ -70,9 +71,7 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         await using var ownerTransaction = await owner.Database.BeginTransactionAsync();
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
         var key = Key();
-        var handle = sync
-            ? owner.Database.AcquireDistributedLock(key, scope: DistributedLockScope.Transaction)
-            : await owner.Database.AcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
+        var handle = await Acquire(owner, key, sync);
         handle.Key.Should().Be(key);
         handle.IsAcquired.Should().BeTrue();
         handle.Release();
@@ -98,7 +97,7 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         var key = Key();
         await Acquire(context, key, sync, mode);
         var result = await Try(context, key, sync, mode);
-        result!.IsAcquired.Should().BeTrue();
+        result.IsAcquired.Should().BeTrue();
     }
 
     [Theory]
@@ -121,7 +120,7 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
             await ownerTransaction.CommitAsync();
         else
             await ownerTransaction.RollbackAsync();
-        (await Try(contender, key, sync))!.IsAcquired.Should().BeTrue();
+        (await Try(contender, key, sync)).IsAcquired.Should().BeTrue();
         acquired.IsAcquired.Should().BeTrue("the result records the acquisition attempt");
         waiting.IsAcquired.Should().BeFalse("an earlier failed attempt is immutable too");
     }
@@ -136,18 +135,12 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         IDistributedLockHandle result;
         await using (var ownerTransaction = await owner.Database.BeginTransactionAsync())
         {
-            result = (
-                await owner.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction)
-            )!;
-            result!.IsAcquired.Should().BeTrue();
-            (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-                .IsAcquired.Should()
-                .BeFalse();
+            result = await Try(owner, key);
+            result.IsAcquired.Should().BeTrue();
+            (await Try(contender, key)).IsAcquired.Should().BeFalse();
         }
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeTrue();
-        result!.IsAcquired.Should().BeTrue();
+        (await Try(contender, key)).IsAcquired.Should().BeTrue();
+        result.IsAcquired.Should().BeTrue();
     }
 
     [Theory]
@@ -163,29 +156,21 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
             await owner.Database.UseTransactionAsync(external)
             ?? throw new InvalidOperationException("EF must attach the external transaction.");
         var key = Key();
-        var result = (
-            await owner.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction)
-        )!;
-        result!.IsAcquired.Should().BeTrue();
+        var result = await Try(owner, key);
+        result.IsAcquired.Should().BeTrue();
         await wrapper.DisposeAsync();
         connection.State.Should().Be(ConnectionState.Open);
         owner.Database.CurrentTransaction.Should().BeNull();
-        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            owner.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction)
-        );
+        await Assert.ThrowsAsync<LockingConfigurationException>(() => Try(owner, key));
         await using var contender = CreateContext();
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeFalse();
+        (await Try(contender, key)).IsAcquired.Should().BeFalse();
         if (commit)
             await external.CommitAsync();
         else
             await external.RollbackAsync();
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeTrue();
-        result!.IsAcquired.Should().BeTrue();
+        (await Try(contender, key)).IsAcquired.Should().BeTrue();
+        result.IsAcquired.Should().BeTrue();
     }
 
     [Theory]
@@ -204,26 +189,10 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         await using var ownerTransaction = await owner.Database.BeginTransactionAsync();
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
         var key = Key();
-        await owner.Database.AcquireDistributedLockAsync(key, mode: ownerMode, scope: DistributedLockScope.Transaction);
-        (
-            await contender.Database.TryAcquireDistributedLockAsync(
-                key,
-                mode: contenderMode,
-                scope: DistributedLockScope.Transaction
-            )
-        )!
-            .IsAcquired.Should()
-            .Be(compatible);
+        await Acquire(owner, key, mode: ownerMode);
+        (await Try(contender, key, mode: contenderMode)).IsAcquired.Should().Be(compatible);
         await ownerTransaction.CommitAsync();
-        (
-            await contender.Database.TryAcquireDistributedLockAsync(
-                key,
-                mode: contenderMode,
-                scope: DistributedLockScope.Transaction
-            )
-        )!
-            .IsAcquired.Should()
-            .BeTrue();
+        (await Try(contender, key, mode: contenderMode)).IsAcquired.Should().BeTrue();
     }
 
     [Fact]
@@ -234,23 +203,11 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         await using var firstTransaction = await first.Database.BeginTransactionAsync();
         await using var secondTransaction = await second.Database.BeginTransactionAsync();
         var key = Key();
-        await first.Database.AcquireDistributedLockAsync(
-            key,
-            mode: DistributedLockMode.Shared,
-            scope: DistributedLockScope.Transaction
-        );
-        await second.Database.AcquireDistributedLockAsync(
-            key,
-            mode: DistributedLockMode.Shared,
-            scope: DistributedLockScope.Transaction
-        );
-        (await first.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeFalse();
+        await Acquire(first, key, mode: DistributedLockMode.Shared);
+        await Acquire(second, key, mode: DistributedLockMode.Shared);
+        (await Try(first, key)).IsAcquired.Should().BeFalse();
         await secondTransaction.RollbackAsync();
-        (await first.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeTrue();
+        (await Try(first, key)).IsAcquired.Should().BeTrue();
     }
 
     [Theory]
@@ -266,21 +223,12 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         {
             var handle = await session.Database.AcquireDistributedLockAsync(key);
             await using (handle)
-                (
-                    await transactional.Database.TryAcquireDistributedLockAsync(
-                        key,
-                        scope: DistributedLockScope.Transaction
-                    )
-                )!
-                    .IsAcquired.Should()
-                    .BeFalse();
-            (await transactional.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-                .IsAcquired.Should()
-                .BeTrue();
+                (await Try(transactional, key)).IsAcquired.Should().BeFalse();
+            (await Try(transactional, key)).IsAcquired.Should().BeTrue();
         }
         else
         {
-            await transactional.Database.AcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
+            await Acquire(transactional, key);
             (await session.Database.TryAcquireDistributedLockAsync(key)).Should().BeNull();
             await transaction.CommitAsync();
             await using var handle = await session.Database.TryAcquireDistributedLockAsync(key);
@@ -300,16 +248,14 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         await using var ownerTransaction = await owner.Database.BeginTransactionAsync();
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
         var key = Key();
-        await owner.Database.AcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
+        await Acquire(owner, key);
         await Assert.ThrowsAsync<LockTimeoutException>(() =>
             Acquire(contender, key, sync, timeout: TimeSpan.FromMilliseconds(milliseconds))
         );
         await contenderTransaction.RollbackAsync();
         await ownerTransaction.CommitAsync();
         await using var retryTransaction = await contender.Database.BeginTransactionAsync();
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeTrue();
+        (await Try(contender, key)).IsAcquired.Should().BeTrue();
     }
 
     [Fact]
@@ -320,19 +266,11 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         await using var ownerTransaction = await owner.Database.BeginTransactionAsync();
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
         var key = Key();
-        await owner.Database.AcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeFalse();
+        await Acquire(owner, key);
+        (await Try(contender, key)).IsAcquired.Should().BeFalse();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            contender
-                .Database.AcquireDistributedLockAsync(
-                    key,
-                    TimeSpan.FromSeconds(10),
-                    cancellation.Token,
-                    scope: DistributedLockScope.Transaction
-                )
+            Acquire(contender, key, timeout: TimeSpan.FromSeconds(10), ct: cancellation.Token)
                 .WaitAsync(TimeSpan.FromSeconds(15))
         );
         await contenderTransaction.RollbackAsync();
@@ -367,20 +305,16 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
             if (acquire)
                 await Acquire(owner, key, sync, timeout: TimeSpan.FromMilliseconds(500));
             result = await Try(owner, key, sync);
-            result!.IsAcquired.Should().BeTrue();
-            (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-                .IsAcquired.Should()
-                .BeFalse();
+            result.IsAcquired.Should().BeTrue();
+            (await Try(contender, key)).IsAcquired.Should().BeFalse();
             if (complete)
                 scope.Complete();
-            (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
+            (await Try(contender, key))
                 .IsAcquired.Should()
                 .BeFalse("Complete is a vote; disposal commits the owning scope");
         }
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeTrue();
-        result!.IsAcquired.Should().BeTrue();
+        (await Try(contender, key)).IsAcquired.Should().BeTrue();
+        result.IsAcquired.Should().BeTrue();
         owner.Database.GetDbConnection().State.Should().Be(ConnectionState.Open);
     }
 
@@ -391,9 +325,7 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         using var scope = NewScope();
         await context.Database.GetDbConnection().OpenAsync();
         context.Database.GetEnlistedTransaction().Should().BeNull();
-        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            context.Database.TryAcquireDistributedLockAsync(Key(), scope: DistributedLockScope.Transaction)
-        );
+        await Assert.ThrowsAsync<LockingConfigurationException>(() => Try(context, Key()));
         context.Database.GetDbConnection().State.Should().Be(ConnectionState.Open);
     }
 
@@ -402,9 +334,7 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
     {
         await using var context = CreateContext();
         using var scope = NewScope();
-        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            context.Database.AcquireDistributedLockAsync(Key(), scope: DistributedLockScope.Transaction)
-        );
+        await Assert.ThrowsAsync<LockingConfigurationException>(() => Acquire(context, Key()));
         context.Database.GetDbConnection().State.Should().Be(ConnectionState.Closed);
     }
 
@@ -421,13 +351,9 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
                 TransactionScopeAsyncFlowOption.Enabled
             )
         )
-            await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-                context.Database.AcquireDistributedLockAsync(Key(), scope: DistributedLockScope.Transaction)
-            );
+            await Assert.ThrowsAsync<LockingConfigurationException>(() => Acquire(context, Key()));
         using (var different = NewScope())
-            await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-                context.Database.AcquireDistributedLockAsync(Key(), scope: DistributedLockScope.Transaction)
-            );
+            await Assert.ThrowsAsync<LockingConfigurationException>(() => Acquire(context, Key()));
     }
 
     [Fact]
@@ -440,9 +366,7 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
             context.Database.EnlistTransaction(Transaction.Current);
             scope.Complete();
         }
-        await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            context.Database.AcquireDistributedLockAsync(Key(), scope: DistributedLockScope.Transaction)
-        );
+        await Assert.ThrowsAsync<LockingConfigurationException>(() => Acquire(context, Key()));
         context.Database.GetDbConnection().State.Should().Be(ConnectionState.Open);
     }
 
@@ -470,7 +394,7 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         await using var contender = CreateContext();
         await using var ownerTransaction = await owner.Database.BeginTransactionAsync();
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
-        await owner.Database.AcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
+        await Acquire(owner, key);
         (await owner.OrderLines.Where(line => line.ProductId == productId).SumAsync(line => line.Quantity))
             .Should()
             .Be(0);
@@ -483,16 +407,12 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
             }
         );
         await owner.SaveChangesAsync();
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeFalse();
+        (await Try(contender, key)).IsAcquired.Should().BeFalse();
         if (commit)
             await ownerTransaction.CommitAsync();
         else
             await ownerTransaction.RollbackAsync();
-        (await contender.Database.TryAcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction))!
-            .IsAcquired.Should()
-            .BeTrue();
+        (await Try(contender, key)).IsAcquired.Should().BeTrue();
         var reserved = await contender
             .OrderLines.Where(line => line.ProductId == productId)
             .SumAsync(line => line.Quantity);
@@ -525,19 +445,11 @@ public abstract class TransactionDistributedLockIntegrationTestsBase : IAsyncLif
         await using var secondTransaction = await second.Database.BeginTransactionAsync();
         var firstKey = Key();
         var secondKey = Key();
-        await first.Database.AcquireDistributedLockAsync(firstKey, scope: DistributedLockScope.Transaction);
-        await second.Database.AcquireDistributedLockAsync(secondKey, scope: DistributedLockScope.Transaction);
+        await Acquire(first, firstKey);
+        await Acquire(second, secondKey);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var firstWait = first.Database.AcquireDistributedLockAsync(
-            secondKey,
-            ct: cancellation.Token,
-            scope: DistributedLockScope.Transaction
-        );
-        var secondWait = second.Database.AcquireDistributedLockAsync(
-            firstKey,
-            ct: cancellation.Token,
-            scope: DistributedLockScope.Transaction
-        );
+        var firstWait = Acquire(first, secondKey, ct: cancellation.Token);
+        var secondWait = Acquire(second, firstKey, ct: cancellation.Token);
         try
         {
             var victim = await Task.WhenAny(firstWait, secondWait).WaitAsync(TimeSpan.FromSeconds(25));

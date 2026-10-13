@@ -7,7 +7,5 @@ internal sealed class SqlServerLockingProvider : ILockingProvider
     public ILockSqlGenerator RowLockGenerator { get; } = new SqlServerLockSqlGenerator();
     public IExceptionTranslator ExceptionTranslator { get; } = new SqlServerExceptionTranslator();
     public string ProviderName => "SqlServer";
-    public ITransactionAdvisoryLockProvider TransactionAdvisoryLockProvider { get; } =
-        new SqlServerTransactionAdvisoryLockProvider();
     public IAdvisoryLockProvider AdvisoryLockProvider { get; } = new SqlServerAdvisoryLockProvider();
 }

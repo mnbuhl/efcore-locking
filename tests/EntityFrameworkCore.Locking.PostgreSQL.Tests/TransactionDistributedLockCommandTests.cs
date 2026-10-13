@@ -10,7 +10,7 @@ namespace EntityFrameworkCore.Locking.PostgreSQL.Tests;
 
 public class TransactionDistributedLockCommandTests
 {
-    private readonly PostgresTransactionAdvisoryLockProvider _provider = new();
+    private readonly PostgresAdvisoryLockProvider _provider = new();
 
     [Theory]
     [InlineData(false)]
@@ -33,10 +33,18 @@ public class TransactionDistributedLockCommandTests
                 "resource",
                 TimeSpan.FromTicks(1),
                 default,
-                DistributedLockMode.Shared
+                DistributedLockMode.Shared,
+                DistributedLockScope.Transaction
             );
         else
-            _provider.Acquire(context, connection, "resource", TimeSpan.FromTicks(1), DistributedLockMode.Shared);
+            _provider.Acquire(
+                context,
+                connection,
+                "resource",
+                TimeSpan.FromTicks(1),
+                DistributedLockMode.Shared,
+                DistributedLockScope.Transaction
+            );
 
         Assert.Equal(4, connection.Commands.Count);
         Assert.All(connection.Commands, command => Assert.Same(transaction, command.Transaction));
@@ -72,7 +80,8 @@ public class TransactionDistributedLockCommandTests
                 "resource",
                 TimeSpan.FromMilliseconds(25),
                 cancellation.Token,
-                DistributedLockMode.Exclusive
+                DistributedLockMode.Exclusive,
+                DistributedLockScope.Transaction
             )
         );
 
@@ -104,7 +113,8 @@ public class TransactionDistributedLockCommandTests
                 "resource",
                 TimeSpan.FromMilliseconds(25),
                 default,
-                DistributedLockMode.Exclusive
+                DistributedLockMode.Exclusive,
+                DistributedLockScope.Transaction
             )
         );
 
@@ -134,7 +144,8 @@ public class TransactionDistributedLockCommandTests
             "resource",
             TimeSpan.FromMilliseconds(25),
             cancellation.Token,
-            DistributedLockMode.Exclusive
+            DistributedLockMode.Exclusive,
+            DistributedLockScope.Transaction
         );
 
         var cleanup = connection.Commands[3];
@@ -152,9 +163,24 @@ public class TransactionDistributedLockCommandTests
         using var context = CreateContext(connection);
         connection.Results.Enqueue(() => null);
         if (async)
-            await _provider.AcquireAsync(context, connection, "resource", null, default, DistributedLockMode.Exclusive);
+            await _provider.AcquireAsync(
+                context,
+                connection,
+                "resource",
+                null,
+                default,
+                DistributedLockMode.Exclusive,
+                DistributedLockScope.Transaction
+            );
         else
-            _provider.Acquire(context, connection, "resource", null, DistributedLockMode.Exclusive);
+            _provider.Acquire(
+                context,
+                connection,
+                "resource",
+                null,
+                DistributedLockMode.Exclusive,
+                DistributedLockScope.Transaction
+            );
         var command = Assert.Single(connection.Commands);
         Assert.Equal("SELECT pg_advisory_xact_lock($1)", command.Sql);
         Assert.Equal(0, command.Timeout);
@@ -172,9 +198,23 @@ public class TransactionDistributedLockCommandTests
         using var context = CreateContext(connection);
         connection.Results.Enqueue(() => outcome);
         var result = async
-            ? await _provider.TryAcquireAsync(context, connection, "resource", default, DistributedLockMode.Shared)
-            : _provider.TryAcquire(context, connection, "resource", DistributedLockMode.Shared);
-        Assert.Equal(outcome, result);
+            ? await _provider.TryAcquireAsync(
+                context,
+                connection,
+                "resource",
+                default,
+                DistributedLockMode.Shared,
+                DistributedLockScope.Transaction
+            )
+            : _provider.TryAcquire(
+                context,
+                connection,
+                "resource",
+                DistributedLockMode.Shared,
+                DistributedLockScope.Transaction
+            );
+        Assert.NotNull(result);
+        Assert.Equal(outcome, result.IsAcquired);
         var command = Assert.Single(connection.Commands);
         Assert.Equal("SELECT pg_try_advisory_xact_lock_shared($1)", command.Sql);
         Assert.Equal(0, command.Timeout);
@@ -190,11 +230,24 @@ public class TransactionDistributedLockCommandTests
         using var context = CreateContext(connection);
         connection.Results.Enqueue(() => result);
         await Assert.ThrowsAsync<LockAcquisitionFailedException>(() =>
-            _provider.TryAcquireAsync(context, connection, "resource", default, DistributedLockMode.Exclusive)
+            _provider.TryAcquireAsync(
+                context,
+                connection,
+                "resource",
+                default,
+                DistributedLockMode.Exclusive,
+                DistributedLockScope.Transaction
+            )
         );
         connection.Results.Enqueue(() => result);
         Assert.Throws<LockAcquisitionFailedException>(() =>
-            _provider.TryAcquire(context, connection, "resource", DistributedLockMode.Exclusive)
+            _provider.TryAcquire(
+                context,
+                connection,
+                "resource",
+                DistributedLockMode.Exclusive,
+                DistributedLockScope.Transaction
+            )
         );
     }
 
@@ -214,12 +267,20 @@ public class TransactionDistributedLockCommandTests
                     "resource",
                     TimeSpan.Zero,
                     default,
-                    DistributedLockMode.Exclusive
+                    DistributedLockMode.Exclusive,
+                    DistributedLockScope.Transaction
                 )
             );
         else
             Assert.Throws<LockTimeoutException>(() =>
-                _provider.Acquire(context, connection, "resource", TimeSpan.Zero, DistributedLockMode.Exclusive)
+                _provider.Acquire(
+                    context,
+                    connection,
+                    "resource",
+                    TimeSpan.Zero,
+                    DistributedLockMode.Exclusive,
+                    DistributedLockScope.Transaction
+                )
             );
         Assert.Equal("SELECT pg_try_advisory_xact_lock($1)", Assert.Single(connection.Commands).Sql);
     }
@@ -241,7 +302,8 @@ public class TransactionDistributedLockCommandTests
                 "resource",
                 TimeSpan.FromMilliseconds(25),
                 default,
-                DistributedLockMode.Exclusive
+                DistributedLockMode.Exclusive,
+                DistributedLockScope.Transaction
             )
         );
         Assert.Same(failure, error.InnerException);

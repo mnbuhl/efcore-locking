@@ -399,6 +399,50 @@ public class TransactionDistributedLockUnitTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task AdvisoryLockProvider_LegacyImplementationDelegatesSessionAndRejectsTransaction(int operation)
+    {
+        using var context = CreateContext(new TransactionTestConnection(ConnectionState.Closed));
+        var connection = (TransactionTestConnection)context.Database.GetDbConnection();
+        IAdvisoryLockProvider provider = new FakeAdvisoryLockProvider();
+        provider.SupportsTransactionLocks.Should().BeFalse();
+        var before = connection.Lifecycle;
+
+        async Task<IDistributedLockHandle?> Acquire(DistributedLockScope scope) =>
+            operation switch
+            {
+                0 => provider.Acquire(context, connection, "legacy", null, DistributedLockMode.Exclusive, scope),
+                1 => provider.TryAcquire(context, connection, "legacy", DistributedLockMode.Exclusive, scope),
+                2 => await provider.AcquireAsync(
+                    context,
+                    connection,
+                    "legacy",
+                    null,
+                    default,
+                    DistributedLockMode.Exclusive,
+                    scope
+                ),
+                _ => await provider.TryAcquireAsync(
+                    context,
+                    connection,
+                    "legacy",
+                    default,
+                    DistributedLockMode.Exclusive,
+                    scope
+                ),
+            };
+
+        using var handle = await Acquire(DistributedLockScope.Session);
+        handle.Should().NotBeNull();
+        handle!.IsAcquired.Should().BeTrue();
+        await Assert.ThrowsAsync<LockingConfigurationException>(() => Acquire(DistributedLockScope.Transaction));
+        connection.Lifecycle.Should().Be(before);
+    }
+
     [Fact]
     public void TransactionDistributedLock_CapabilityIsIndependentOfConnectionAndTransactionReadiness()
     {
@@ -478,71 +522,110 @@ internal sealed class TransactionTestContext(
 internal sealed class TransactionTestRootProvider : ILockingProvider
 {
     public TransactionTestProvider Transaction { get; } = new();
-    public ITransactionAdvisoryLockProvider TransactionAdvisoryLockProvider => Transaction;
-    public IAdvisoryLockProvider AdvisoryLockProvider { get; } = new FakeAdvisoryLockProvider();
+    public IAdvisoryLockProvider AdvisoryLockProvider => Transaction;
     public ILockSqlGenerator RowLockGenerator { get; } = new FakeLockSqlGenerator();
     public IExceptionTranslator ExceptionTranslator { get; } = new FakeExceptionTranslator();
     public string ProviderName => "TransactionTest";
 }
 
-internal sealed class TransactionTestProvider : ITransactionAdvisoryLockProvider
+internal sealed class TransactionTestProvider : IAdvisoryLockProvider
 {
+    private readonly FakeAdvisoryLockProvider _session = new();
+    public bool SupportsTransactionLocks => true;
     public List<int> Calls { get; } = [];
     public bool Outcome { get; set; } = true;
     public string? LastKey { get; private set; }
     public DistributedLockMode LastMode { get; private set; }
 
-    public void ValidateMode(DistributedLockMode mode)
-    {
-        if (mode is not DistributedLockMode.Shared and not DistributedLockMode.Exclusive)
-            throw new LockingConfigurationException("Invalid mode.");
-    }
+    public void ValidateMode(DistributedLockMode mode) => _session.ValidateMode(mode);
 
-    private void Record(int call, string key, DistributedLockMode mode)
+    private IDistributedLockHandle Record(int call, string key, DistributedLockMode mode, bool outcome)
     {
         Calls.Add(call);
         LastKey = key;
         LastMode = mode;
+        return new TransactionDistributedLockResult(key, outcome);
     }
 
-    public void Acquire(
+    public IDistributedLockHandle Acquire(
         DbContext context,
         DbConnection connection,
         string key,
         TimeSpan? timeout,
         DistributedLockMode mode
-    ) => Record(0, key, mode);
+    ) => _session.Acquire(context, connection, key, timeout, mode);
 
-    public bool TryAcquire(DbContext context, DbConnection connection, string key, DistributedLockMode mode)
-    {
-        Record(1, key, mode);
-        return Outcome;
-    }
+    public IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        DistributedLockMode mode
+    ) => _session.TryAcquire(context, connection, key, mode);
 
-    public Task AcquireAsync(
+    public Task<IDistributedLockHandle> AcquireAsync(
         DbContext context,
         DbConnection connection,
         string key,
         TimeSpan? timeout,
         CancellationToken ct,
         DistributedLockMode mode
-    )
-    {
-        Record(2, key, mode);
-        return Task.CompletedTask;
-    }
+    ) => _session.AcquireAsync(context, connection, key, timeout, ct, mode);
 
-    public Task<bool> TryAcquireAsync(
+    public Task<IDistributedLockHandle?> TryAcquireAsync(
         DbContext context,
         DbConnection connection,
         string key,
         CancellationToken ct,
         DistributedLockMode mode
-    )
-    {
-        Record(3, key, mode);
-        return Task.FromResult(Outcome);
-    }
+    ) => _session.TryAcquireAsync(context, connection, key, ct, mode);
+
+    public IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        DistributedLockMode mode,
+        DistributedLockScope scope
+    ) =>
+        scope == DistributedLockScope.Session
+            ? Acquire(context, connection, key, timeout, mode)
+            : Record(0, key, mode, true);
+
+    public IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        DistributedLockMode mode,
+        DistributedLockScope scope
+    ) =>
+        scope == DistributedLockScope.Session
+            ? TryAcquire(context, connection, key, mode)
+            : Record(1, key, mode, Outcome);
+
+    public Task<IDistributedLockHandle> AcquireAsync(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        CancellationToken ct,
+        DistributedLockMode mode,
+        DistributedLockScope scope
+    ) =>
+        scope == DistributedLockScope.Session
+            ? AcquireAsync(context, connection, key, timeout, ct, mode)
+            : Task.FromResult(Record(2, key, mode, true));
+
+    public Task<IDistributedLockHandle?> TryAcquireAsync(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        CancellationToken ct,
+        DistributedLockMode mode,
+        DistributedLockScope scope
+    ) =>
+        scope == DistributedLockScope.Session
+            ? TryAcquireAsync(context, connection, key, ct, mode)
+            : Task.FromResult<IDistributedLockHandle?>(Record(3, key, mode, Outcome));
 }
 
 internal sealed class TransactionTestConnection(ConnectionState state = ConnectionState.Open) : DbConnection

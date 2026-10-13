@@ -59,10 +59,9 @@ public static class DatabaseFacadeDistributedLockExtensions
                 mode,
                 timeout
             );
-            await transactionProvider
-                .AcquireAsync(transactionContext, transactionConnection, key, timeout, ct, mode)
+            return await transactionProvider
+                .AcquireAsync(transactionContext, transactionConnection, key, timeout, ct, mode, scope)
                 .ConfigureAwait(false);
-            return new TransactionDistributedLockResult(key, true);
         }
         var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct, mode).ConfigureAwait(false);
         try
@@ -123,10 +122,9 @@ public static class DatabaseFacadeDistributedLockExtensions
                 key,
                 mode
             );
-            var acquired = await transactionProvider
-                .TryAcquireAsync(transactionContext, transactionConnection, key, ct, mode)
+            return await transactionProvider
+                .TryAcquireAsync(transactionContext, transactionConnection, key, ct, mode, scope)
                 .ConfigureAwait(false);
-            return new TransactionDistributedLockResult(key, acquired);
         }
         var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct, mode).ConfigureAwait(false);
         try
@@ -193,8 +191,7 @@ public static class DatabaseFacadeDistributedLockExtensions
                 mode,
                 timeout
             );
-            transactionProvider.Acquire(transactionContext, transactionConnection, key, timeout, mode);
-            return new TransactionDistributedLockResult(key, true);
+            return transactionProvider.Acquire(transactionContext, transactionConnection, key, timeout, mode, scope);
         }
         var (ctx, provider, connection, openedByMe) = PrepareSync(database, key, mode);
         try
@@ -248,10 +245,7 @@ public static class DatabaseFacadeDistributedLockExtensions
                 key,
                 mode
             );
-            return new TransactionDistributedLockResult(
-                key,
-                transactionProvider.TryAcquire(transactionContext, transactionConnection, key, mode)
-            );
+            return transactionProvider.TryAcquire(transactionContext, transactionConnection, key, mode, scope);
         }
         var (ctx, provider, connection, openedByMe) = PrepareSync(database, key, mode);
         try
@@ -327,14 +321,15 @@ public static class DatabaseFacadeDistributedLockExtensions
     public static bool SupportsTransactionDistributedLocks(this DatabaseFacade database)
     {
         var lp = ((IInfrastructure<IServiceProvider>)database).Instance.GetService<ILockingProvider>();
-        return lp?.TransactionAdvisoryLockProvider is not null;
+        return lp?.AdvisoryLockProvider?.SupportsTransactionLocks ?? false;
     }
 
-    private static (
-        DbContext ctx,
-        ITransactionAdvisoryLockProvider provider,
-        DbConnection connection
-    ) PrepareTransaction(DatabaseFacade database, string key, DistributedLockMode mode, TimeSpan? timeout = null)
+    private static (DbContext ctx, IAdvisoryLockProvider provider, DbConnection connection) PrepareTransaction(
+        DatabaseFacade database,
+        string key,
+        DistributedLockMode mode,
+        TimeSpan? timeout = null
+    )
     {
         ValidateKey(key);
         _ = TransactionDistributedLockTimeout.ToMilliseconds(timeout);
@@ -343,8 +338,8 @@ public static class DatabaseFacadeDistributedLockExtensions
             throw new LockingConfigurationException(
                 "No ILockingProvider is registered. Call UseLocking() when configuring the DbContext."
             );
-        var provider = lp.TransactionAdvisoryLockProvider;
-        if (provider is null)
+        var provider = lp.AdvisoryLockProvider;
+        if (provider is null || !provider.SupportsTransactionLocks)
             throw new LockingConfigurationException(
                 $"The '{lp.ProviderName}' provider does not support transaction distributed locks."
             );

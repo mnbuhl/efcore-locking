@@ -24,15 +24,17 @@ public class TransactionDistributedLockUnsupportedTests
         connection.State.Should().Be(ConnectionState.Closed);
         context.Database.SupportsTransactionDistributedLocks().Should().BeFalse();
         context.Database.SupportsDistributedLocks().Should().BeTrue();
-        Assert.Throws<LockingConfigurationException>(() => context.Database.AcquireTransactionDistributedLock("key"));
         Assert.Throws<LockingConfigurationException>(() =>
-            context.Database.TryAcquireTransactionDistributedLock("key")
+            context.Database.AcquireDistributedLock("key", scope: DistributedLockScope.Transaction)
+        );
+        Assert.Throws<LockingConfigurationException>(() =>
+            context.Database.TryAcquireDistributedLock("key", scope: DistributedLockScope.Transaction)
         );
         await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            context.Database.AcquireTransactionDistributedLockAsync("key")
+            context.Database.AcquireDistributedLockAsync("key", scope: DistributedLockScope.Transaction)
         );
         await Assert.ThrowsAsync<LockingConfigurationException>(() =>
-            context.Database.TryAcquireTransactionDistributedLockAsync("key")
+            context.Database.TryAcquireDistributedLockAsync("key", scope: DistributedLockScope.Transaction)
         );
         connection.State.Should().Be(ConnectionState.Closed);
     }

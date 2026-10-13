@@ -4,7 +4,7 @@ Pessimistic locking for EF Core. Supports PostgreSQL, MySQL, and SQL Server.
 
 - **Row-level locks** — `ForUpdate()` / `ForShare()` LINQ extensions, scoped to a transaction
 - **Distributed locks** — `AcquireDistributedLockAsync()` session-scoped advisory locks, no transaction required
-- **Transaction distributed locks** — `AcquireTransactionDistributedLockAsync()` native advisory locks owned by an existing transaction (PostgreSQL and SQL Server)
+- **Transaction distributed locks** — `AcquireDistributedLockAsync(..., scope: DistributedLockScope.Transaction)` native advisory locks owned by an existing transaction (PostgreSQL and SQL Server)
 
 ## Installation
 
@@ -134,7 +134,7 @@ await tx.CommitAsync();
 
 ## Distributed locks
 
-Advisory locks coordinate across processes using an application-defined key. The following methods are session-scoped — held until the handle is disposed or the connection drops. Transaction-owned methods are described below.
+Advisory locks coordinate across processes using an application-defined key. The following methods default to session scope — held until the handle is disposed or the connection drops. Pass `scope: DistributedLockScope.Transaction` to hold the lock until transaction completion, as described below.
 
 ```csharp
 // Blocks until available
@@ -168,13 +168,13 @@ if (ctx.Database.SupportsDistributedLocks()) { ... }
 
 ### Transaction-scoped distributed locks
 
-On PostgreSQL and SQL Server, use the separate transaction methods when a lock must protect a read-check-write sequence through commit or rollback. The connection must already be open and have an active EF transaction, including an external transaction attached through `UseTransaction`. The methods do not open/close connections, create/enlist transactions, or return disposable handles.
+On PostgreSQL and SQL Server, pass `scope: DistributedLockScope.Transaction` to the same distributed-lock methods when a lock must protect a read-check-write sequence through commit or rollback. The connection must already be open and have an active EF transaction, including an external transaction attached through `UseTransaction`. In transaction scope, the methods do not open/close connections or create/enlist transactions. They return acquisition results through `IDistributedLockHandle`; release and disposal are no-ops because the transaction owns the lock lifetime. Omitting `scope` preserves session behavior, even when a transaction exists.
 
 ```csharp
 await using var tx = await ctx.Database.BeginTransactionAsync();
 
-await ctx.Database.AcquireTransactionDistributedLockAsync(
-    "stock:123", TimeSpan.FromSeconds(5));
+await using var result = await ctx.Database.AcquireDistributedLockAsync(
+    "stock:123", TimeSpan.FromSeconds(5), scope: DistributedLockScope.Transaction);
 
 // Read, check, and write while holding the advisory lock.
 await ctx.SaveChangesAsync();
@@ -185,8 +185,9 @@ Non-blocking acquisition returns an immutable result object:
 
 ```csharp
 await using var tx = await ctx.Database.BeginTransactionAsync();
-var result = await ctx.Database.TryAcquireTransactionDistributedLockAsync("stock:123");
-if (!result.IsAcquired)
+await using var result = await ctx.Database.TryAcquireDistributedLockAsync(
+    "stock:123", scope: DistributedLockScope.Transaction);
+if (result is not { IsAcquired: true })
     return; // ordinary contention; transaction disposal rolls back
 
 // Perform the protected operation.
@@ -194,7 +195,7 @@ await tx.CommitAsync();
 // result.IsAcquired remains true: it records the attempt, not current lock ownership.
 ```
 
-Synchronous variants are `AcquireTransactionDistributedLock()` and `TryAcquireTransactionDistributedLock()`. Both sync/async variants accept `DistributedLockMode.Shared` or `Exclusive` (default). `SupportsTransactionDistributedLocks()` reports provider capability, independent of whether the connection or transaction is ready. Reacquiring a key in the same transaction follows the database's native behavior, including contention when strengthening shared ownership to exclusive.
+Synchronous variants are `AcquireDistributedLock()` and `TryAcquireDistributedLock()`, with the same `scope` argument. `TryAcquire` in transaction scope always returns an immutable result, with `IsAcquired=false` for ordinary contention; its return type remains nullable because session scope still returns null on contention. Both sync/async variants accept `DistributedLockMode.Shared` or `Exclusive` (default). `SupportsTransactionDistributedLocks()` reports provider capability, independent of whether the connection or transaction is ready. Reacquiring a key in the same transaction follows the database's native behavior, including contention when strengthening shared ownership to exclusive.
 
 For `TransactionScope`, explicitly enlist through EF after opening the connection. Driver auto-enlistment alone does not populate EF's tracked enlistment and is rejected by the transaction lock API. Enable async flow and keep connection cleanup outside the completed scope:
 
@@ -210,7 +211,8 @@ try
     {
         await ctx.Database.OpenConnectionAsync();
         ctx.Database.EnlistTransaction(Transaction.Current);
-        await ctx.Database.AcquireTransactionDistributedLockAsync("stock:123");
+        await using var result = await ctx.Database.AcquireDistributedLockAsync(
+            "stock:123", scope: DistributedLockScope.Transaction);
 
         await ctx.SaveChangesAsync();
         scope.Complete(); // commit occurs when the owning scope is disposed
@@ -234,7 +236,7 @@ A null timeout adds no library wait limit, zero performs one no-wait attempt (an
 
 After any acquisition failure, roll back the affected transaction or exit its scope without completing it. PostgreSQL timeout/cancellation/deadlock errors can abort the transaction; a cancellation before dispatch can leave it usable but with a temporary local timeout. Successful finite-timeout acquisition restores the caller's original `lock_timeout`. The library neither issues recovery SQL after failure nor creates savepoints. SQL Server application-lock deadlock return codes do not themselves roll back the transaction.
 
-There is no explicit release or disposal operation. Native savepoint semantics still apply: on PostgreSQL, rolling back to a savepoint releases transaction locks acquired after that savepoint. An `IsAcquired` result continues to report the original successful attempt.
+Calling `Release`, `ReleaseAsync`, `Dispose`, or `DisposeAsync` on a transaction result does not release the lock or affect the connection or transaction. Native savepoint semantics still apply: on PostgreSQL, rolling back to a savepoint releases transaction locks acquired after that savepoint. An `IsAcquired` result continues to report the original successful attempt.
 
 ### Lock keys
 

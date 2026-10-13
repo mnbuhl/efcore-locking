@@ -15,6 +15,105 @@ namespace EntityFrameworkCore.Locking.Tests;
 public class TransactionDistributedLockUnitTests
 {
     [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(3, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    [InlineData(3, true)]
+    public async Task DistributedLock_DefaultAndExplicitSessionScopeUseSessionProviderInsideTransaction(
+        int operation,
+        bool explicitScope
+    )
+    {
+        using var context = CreateContext();
+        using var transaction = context.Database.BeginTransaction();
+        IDistributedLockHandle? handle = operation switch
+        {
+            0 => explicitScope
+                ? context.Database.AcquireDistributedLock("session", scope: DistributedLockScope.Session)
+                : context.Database.AcquireDistributedLock("session"),
+            1 => explicitScope
+                ? context.Database.TryAcquireDistributedLock("session", scope: DistributedLockScope.Session)
+                : context.Database.TryAcquireDistributedLock("session"),
+            2 => explicitScope
+                ? await context.Database.AcquireDistributedLockAsync("session", scope: DistributedLockScope.Session)
+                : await context.Database.AcquireDistributedLockAsync("session"),
+            _ => explicitScope
+                ? await context.Database.TryAcquireDistributedLockAsync("session", scope: DistributedLockScope.Session)
+                : await context.Database.TryAcquireDistributedLockAsync("session"),
+        };
+        handle.Should().NotBeNull();
+        handle!.IsAcquired.Should().BeTrue();
+        context.Provider.Transaction.Calls.Should().BeEmpty();
+        handle.Dispose();
+        // Real session disposal releases the registry entry and the provider lock.
+        using var reacquired = context.Database.TryAcquireDistributedLock("session");
+        reacquired.Should().NotBeNull();
+        reacquired!.IsAcquired.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task DistributedLock_InvalidScopeRejectsBeforeProviderOrConnectionLifecycle(int operation)
+    {
+        using var context = CreateContext(new TransactionTestConnection(ConnectionState.Closed));
+        var connection = (TransactionTestConnection)context.Database.GetDbConnection();
+        var before = connection.Lifecycle;
+        var invalid = (DistributedLockScope)99;
+        await Assert.ThrowsAsync<LockingConfigurationException>(async () =>
+        {
+            switch (operation)
+            {
+                case 0:
+                    context.Database.AcquireDistributedLock("key", scope: invalid);
+                    break;
+                case 1:
+                    context.Database.TryAcquireDistributedLock("key", scope: invalid);
+                    break;
+                case 2:
+                    await context.Database.AcquireDistributedLockAsync("key", scope: invalid);
+                    break;
+                case 3:
+                    await context.Database.TryAcquireDistributedLockAsync("key", scope: invalid);
+                    break;
+            }
+        });
+        context.Provider.Transaction.Calls.Should().BeEmpty();
+        connection.Lifecycle.Should().Be(before);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TransactionDistributedLock_DisposalAndReleaseAreNoOpsWithImmutableOutcome(bool acquired)
+    {
+        using var context = CreateContext();
+        using var transaction = context.Database.BeginTransaction();
+        context.Provider.Transaction.Outcome = acquired;
+        var result = context.Database.TryAcquireDistributedLock("key", scope: DistributedLockScope.Transaction);
+        result.Should().NotBeNull();
+        var connection = (TransactionTestConnection)context.Database.GetDbConnection();
+        var before = connection.Lifecycle;
+        result!.Release();
+        await result.ReleaseAsync();
+        result.Dispose();
+        await result.DisposeAsync();
+        result.Release();
+        result.Dispose();
+        connection.Lifecycle.Should().Be(before);
+        context.Provider.Transaction.Calls.Should().ContainSingle();
+        result.IsAcquired.Should().Be(acquired);
+        transaction.Rollback();
+        result.IsAcquired.Should().Be(acquired);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -41,19 +140,19 @@ public class TransactionDistributedLockUnitTests
         using var context = CreateContext();
         context.Provider.Transaction.Outcome = acquired;
         using var transaction = context.Database.BeginTransaction();
-        var sync = context.Database.TryAcquireTransactionDistributedLock("sync");
-        var asyncResult = await context.Database.TryAcquireTransactionDistributedLockAsync("async");
+        var sync = context.Database.TryAcquireDistributedLock("sync", scope: DistributedLockScope.Transaction);
+        var asyncResult = await context.Database.TryAcquireDistributedLockAsync(
+            "async",
+            scope: DistributedLockScope.Transaction
+        );
         transaction.Commit();
-        sync.IsAcquired.Should().Be(acquired);
-        asyncResult.IsAcquired.Should().Be(acquired);
-        typeof(TransactionDistributedLockResult)
-            .GetProperties()
-            .Should()
-            .ContainSingle()
-            .Which.CanWrite.Should()
-            .BeFalse();
-        typeof(IDisposable).IsAssignableFrom(typeof(TransactionDistributedLockResult)).Should().BeFalse();
-        typeof(IAsyncDisposable).IsAssignableFrom(typeof(TransactionDistributedLockResult)).Should().BeFalse();
+        sync.Should().NotBeNull();
+        asyncResult.Should().NotBeNull();
+        sync!.IsAcquired.Should().Be(acquired);
+        asyncResult!.IsAcquired.Should().Be(acquired);
+        sync!.Key.Should().Be("sync");
+        asyncResult!.Key.Should().Be("async");
+        typeof(TransactionDistributedLockResult).GetProperties().Should().OnlyContain(property => !property.CanWrite);
     }
 
     [Fact]
@@ -61,10 +160,23 @@ public class TransactionDistributedLockUnitTests
     {
         using var context = CreateContext();
         using var transaction = context.Database.BeginTransaction();
-        context.Database.AcquireTransactionDistributedLock("repeat", mode: DistributedLockMode.Shared);
-        await context.Database.AcquireTransactionDistributedLockAsync("repeat", mode: DistributedLockMode.Exclusive);
-        context.Database.TryAcquireTransactionDistributedLock("repeat").IsAcquired.Should().BeTrue();
-        (await context.Database.TryAcquireTransactionDistributedLockAsync("repeat")).IsAcquired.Should().BeTrue();
+        context.Database.AcquireDistributedLock(
+            "repeat",
+            mode: DistributedLockMode.Shared,
+            scope: DistributedLockScope.Transaction
+        );
+        await context.Database.AcquireDistributedLockAsync(
+            "repeat",
+            mode: DistributedLockMode.Exclusive,
+            scope: DistributedLockScope.Transaction
+        );
+        context
+            .Database.TryAcquireDistributedLock("repeat", scope: DistributedLockScope.Transaction)!
+            .IsAcquired.Should()
+            .BeTrue();
+        (await context.Database.TryAcquireDistributedLockAsync("repeat", scope: DistributedLockScope.Transaction))!
+            .IsAcquired.Should()
+            .BeTrue();
         // A session acquisition must still reach its provider rather than see a transaction registry entry.
         using var session = context.Database.AcquireDistributedLock("repeat", mode: DistributedLockMode.Shared);
         context.Provider.Transaction.Calls.Should().HaveCount(4);
@@ -170,10 +282,18 @@ public class TransactionDistributedLockUnitTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            context.Database.AcquireTransactionDistributedLockAsync("key", ct: cancellation.Token)
+            context.Database.AcquireDistributedLockAsync(
+                "key",
+                ct: cancellation.Token,
+                scope: DistributedLockScope.Transaction
+            )
         );
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            context.Database.TryAcquireTransactionDistributedLockAsync("key", ct: cancellation.Token)
+            context.Database.TryAcquireDistributedLockAsync(
+                "key",
+                ct: cancellation.Token,
+                scope: DistributedLockScope.Transaction
+            )
         );
         context.Provider.Transaction.Calls.Should().BeEmpty();
     }
@@ -311,16 +431,25 @@ public class TransactionDistributedLockUnitTests
         switch (operation)
         {
             case 0:
-                context.Database.AcquireTransactionDistributedLock(key, timeout, mode);
+                context.Database.AcquireDistributedLock(key, timeout, mode, scope: DistributedLockScope.Transaction);
                 break;
             case 1:
-                context.Database.TryAcquireTransactionDistributedLock(key, mode);
+                context.Database.TryAcquireDistributedLock(key, mode, scope: DistributedLockScope.Transaction);
                 break;
             case 2:
-                await context.Database.AcquireTransactionDistributedLockAsync(key, timeout, mode: mode);
+                await context.Database.AcquireDistributedLockAsync(
+                    key,
+                    timeout,
+                    mode: mode,
+                    scope: DistributedLockScope.Transaction
+                );
                 break;
             case 3:
-                await context.Database.TryAcquireTransactionDistributedLockAsync(key, mode: mode);
+                await context.Database.TryAcquireDistributedLockAsync(
+                    key,
+                    mode: mode,
+                    scope: DistributedLockScope.Transaction
+                );
                 break;
         }
     }

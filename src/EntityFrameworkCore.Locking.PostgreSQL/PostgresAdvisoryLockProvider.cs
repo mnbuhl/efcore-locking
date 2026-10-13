@@ -211,7 +211,7 @@ internal sealed class PostgresAdvisoryLockProvider : IAdvisoryLockProvider
         return new DistributedLockHandle(key, connection, openedByConnection: false, ReleaseAsync, ReleaseSync);
     }
 
-    private static long ComputeKey(string key)
+    internal static long ComputeKey(string key)
     {
         var bytes = Encoding.UTF8.GetBytes(key);
         var hash = XxHash32.HashToUInt32(bytes);

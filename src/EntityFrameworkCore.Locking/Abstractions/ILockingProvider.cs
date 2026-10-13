@@ -14,4 +14,7 @@ public interface ILockingProvider
 
     /// <summary>Advisory lock provider, or null if the provider does not support distributed locks.</summary>
     IAdvisoryLockProvider? AdvisoryLockProvider => null;
+
+    /// <summary>Native transaction-scoped advisory lock provider, or null when unsupported.</summary>
+    ITransactionAdvisoryLockProvider? TransactionAdvisoryLockProvider => null;
 }

@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Globalization;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.Internal;
@@ -43,11 +42,7 @@ internal sealed class PostgresTransactionAdvisoryLockProvider : ITransactionAdvi
             {
                 await using var read = CreateCommand(context, connection, "SELECT current_setting('lock_timeout')");
                 previous = ReadTimeout(await read.ExecuteScalarAsync(ct).ConfigureAwait(false), key);
-                await using var set = CreateTimeoutCommand(
-                    context,
-                    connection,
-                    milliseconds.ToString(CultureInfo.InvariantCulture) + "ms"
-                );
+                await using var set = CreateAcquisitionTimeoutCommand(context, connection, milliseconds);
                 await set.ExecuteScalarAsync(ct).ConfigureAwait(false);
             }
 
@@ -101,11 +96,7 @@ internal sealed class PostgresTransactionAdvisoryLockProvider : ITransactionAdvi
             {
                 using var read = CreateCommand(context, connection, "SELECT current_setting('lock_timeout')");
                 previous = ReadTimeout(read.ExecuteScalar(), key);
-                using var set = CreateTimeoutCommand(
-                    context,
-                    connection,
-                    milliseconds.ToString(CultureInfo.InvariantCulture) + "ms"
-                );
+                using var set = CreateAcquisitionTimeoutCommand(context, connection, milliseconds);
                 set.ExecuteScalar();
             }
 
@@ -180,6 +171,22 @@ internal sealed class PostgresTransactionAdvisoryLockProvider : ITransactionAdvi
         command.CommandText = sql;
         command.CommandTimeout = SetupTimeoutSeconds;
         command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
+        return command;
+    }
+
+    private static DbCommand CreateAcquisitionTimeoutCommand(
+        DbContext context,
+        DbConnection connection,
+        int milliseconds
+    )
+    {
+        // pg_settings exposes lock_timeout in milliseconds; zero disables the caller's timeout.
+        var command = CreateCommand(
+            context,
+            connection,
+            "SELECT set_config('lock_timeout', (CASE WHEN setting::int = 0 THEN $1 ELSE LEAST(setting::int, $1) END)::text || 'ms', true) FROM pg_catalog.pg_settings WHERE name = 'lock_timeout'"
+        );
+        command.Parameters.Add(new NpgsqlParameter<int> { TypedValue = milliseconds });
         return command;
     }
 

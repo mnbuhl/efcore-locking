@@ -41,7 +41,7 @@ public class TransactionDistributedLockCommandTests
         Assert.Equal(4, connection.Commands.Count);
         Assert.All(connection.Commands, command => Assert.Same(transaction, command.Transaction));
         Assert.Equal("SELECT current_setting('lock_timeout')", connection.Commands[0].Sql);
-        Assert.Equal("1ms", connection.Commands[1].Values[0]);
+        Assert.Equal(1, connection.Commands[1].Values[0]);
         Assert.Equal("SELECT pg_advisory_xact_lock_shared($1)", connection.Commands[2].Sql);
         Assert.Equal(PostgresAdvisoryLockProvider.ComputeKey("resource"), connection.Commands[2].Values[0]);
         Assert.Equal("7s", connection.Commands[3].Values[0]);

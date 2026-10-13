@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using AwesomeAssertions;
 using EntityFrameworkCore.Locking.Exceptions;
@@ -17,13 +18,19 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
         new(new DbContextOptionsBuilder<TestDbContext>().UseNpgsql(fixture.ConnectionString).UseLocking().Options);
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SuccessfulAcquisition_RestoresExactCallerLockTimeout(bool sync)
+    [InlineData(false, "2s", 250)]
+    [InlineData(true, "2s", 250)]
+    [InlineData(false, "100ms", 5000)]
+    [InlineData(true, "100ms", 5000)]
+    public async Task SuccessfulAcquisition_RestoresExactCallerLockTimeout(
+        bool sync,
+        string callerTimeout,
+        int requestedTimeoutMilliseconds
+    )
     {
         await using var context = CreateContext();
         await using var transaction = await context.Database.BeginTransactionAsync();
-        await context.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '2s'");
+        await context.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('lock_timeout', {callerTimeout}, true)");
         var previous = await ReadTimeout(context);
         for (var attempt = 0; attempt < 2; attempt++)
         {
@@ -31,13 +38,13 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
             if (sync)
                 context.Database.AcquireDistributedLock(
                     key,
-                    TimeSpan.FromMilliseconds(250),
+                    TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds),
                     scope: DistributedLockScope.Transaction
                 );
             else
                 await context.Database.AcquireDistributedLockAsync(
                     key,
-                    TimeSpan.FromMilliseconds(250),
+                    TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds),
                     scope: DistributedLockScope.Transaction
                 );
             (await ReadTimeout(context)).Should().Be(previous);
@@ -47,6 +54,57 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
             scope: DistributedLockScope.Transaction
         );
         (await ReadTimeout(context)).Should().Be(previous);
+    }
+
+    [Theory]
+    [InlineData(false, DistributedLockMode.Exclusive, "100ms", 5000)]
+    [InlineData(true, DistributedLockMode.Exclusive, "100ms", 5000)]
+    [InlineData(false, DistributedLockMode.Shared, "100ms", 5000)]
+    [InlineData(true, DistributedLockMode.Shared, "100ms", 5000)]
+    [InlineData(false, DistributedLockMode.Exclusive, "0", 150)]
+    [InlineData(true, DistributedLockMode.Exclusive, "0", 150)]
+    public async Task ContendedAcquisition_UsesStricterFiniteTimeout(
+        bool sync,
+        DistributedLockMode mode,
+        string callerTimeout,
+        int requestedTimeoutMilliseconds
+    )
+    {
+        await using var owner = CreateContext();
+        await using var contender = CreateContext();
+        await using var ownerTransaction = await owner.Database.BeginTransactionAsync();
+        await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
+        await contender.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('lock_timeout', {callerTimeout}, true)"
+        );
+        // Bound the test even if a regression disables lock_timeout when the caller uses zero.
+        await contender.Database.ExecuteSqlRawAsync("SET LOCAL statement_timeout = '10s'");
+        var key = $"stricter-timeout-{Guid.NewGuid():N}";
+        await owner.Database.AcquireDistributedLockAsync(key, scope: DistributedLockScope.Transaction);
+        var elapsed = Stopwatch.StartNew();
+
+        if (sync)
+            Assert.Throws<LockTimeoutException>(() =>
+                contender.Database.AcquireDistributedLock(
+                    key,
+                    TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds),
+                    mode,
+                    scope: DistributedLockScope.Transaction
+                )
+            );
+        else
+            await Assert.ThrowsAsync<LockTimeoutException>(() =>
+                contender.Database.AcquireDistributedLockAsync(
+                    key,
+                    TimeSpan.FromMilliseconds(requestedTimeoutMilliseconds),
+                    mode: mode,
+                    scope: DistributedLockScope.Transaction
+                )
+            );
+
+        elapsed.Stop();
+        elapsed.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3));
+        await contenderTransaction.RollbackAsync();
     }
 
     [Fact]

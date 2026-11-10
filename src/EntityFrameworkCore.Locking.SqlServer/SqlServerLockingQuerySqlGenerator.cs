@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 namespace EntityFrameworkCore.Locking.SqlServer;
 
 /// <summary>
-/// Extends SqlServerQuerySqlGenerator to append WITH (UPDLOCK, HOLDLOCK, ROWLOCK) table hints
+/// Extends SqlServerQuerySqlGenerator to append shared or update table hints
 /// on each table in the FROM clause when a lock is active.
 /// SQL Server requires hints on individual tables, not as a trailing clause.
 /// </summary>

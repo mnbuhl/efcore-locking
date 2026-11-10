@@ -1,4 +1,7 @@
 using AwesomeAssertions;
+using EntityFrameworkCore.Locking.Exceptions;
+using EntityFrameworkCore.Locking.Tests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace EntityFrameworkCore.Locking.SqlServer.Tests;
@@ -55,10 +58,33 @@ public class SqlGenerationTests
         _generator.GeneratePreStatementSql(opts).Should().Be(expected);
     }
 
-    [Fact]
-    public void SupportsLockOptions_ForShare_ReturnsFalse()
+    [Theory]
+    [InlineData(LockBehavior.Wait, true)]
+    [InlineData(LockBehavior.NoWait, true)]
+    [InlineData(LockBehavior.SkipLocked, false)]
+    public void SupportsLockOptions_ForShare_ValidatesBehavior(LockBehavior behavior, bool supported)
     {
-        _generator.SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare }).Should().BeFalse();
+        _generator
+            .SupportsLockOptions(new LockOptions { Mode = LockMode.ForShare, Behavior = behavior })
+            .Should()
+            .Be(supported);
+    }
+
+    [Theory]
+    [InlineData(LockBehavior.Wait, null)]
+    [InlineData(LockBehavior.NoWait, "SET LOCK_TIMEOUT 0")]
+    public void GenerateLockClause_ForShare_ReturnsSharedHint(LockBehavior behavior, string? preStatement)
+    {
+        var opts = new LockOptions { Mode = LockMode.ForShare, Behavior = behavior };
+        _generator.GenerateLockClause(opts).Should().Be("WITH (HOLDLOCK, ROWLOCK)");
+        _generator.GeneratePreStatementSql(opts).Should().Be(preStatement);
+    }
+
+    [Fact]
+    public void GeneratePreStatementSql_ForShare_WithTimeout_ReturnsSetLockTimeoutMs()
+    {
+        var opts = new LockOptions { Mode = LockMode.ForShare, Timeout = TimeSpan.FromMilliseconds(500) };
+        _generator.GeneratePreStatementSql(opts).Should().Be("SET LOCK_TIMEOUT 500");
     }
 
     [Fact]
@@ -93,5 +119,38 @@ public class SqlGenerationTests
             .SupportsLockOptions(new LockOptions { Mode = LockMode.ForUpdate, Behavior = LockBehavior.NoWait })
             .Should()
             .BeTrue();
+    }
+
+    [Theory]
+    [InlineData(LockBehavior.Wait)]
+    [InlineData(LockBehavior.NoWait)]
+    public void ForShare_ToQueryString_EmitsSharedHints(LockBehavior behavior)
+    {
+        using var ctx = new TestDbContext(
+            new DbContextOptionsBuilder<TestDbContext>()
+                .UseSqlServer(
+                    "Server=localhost;Database=SqlGeneration;Integrated Security=true;TrustServerCertificate=true"
+                )
+                .UseLocking()
+                .Options
+        );
+        var sql = ctx.Products.Where(p => p.Id == 1).ForShare(behavior).ToQueryString();
+        sql.Should().Contain("WITH (HOLDLOCK, ROWLOCK)");
+        sql.Should().NotContain("UPDLOCK");
+    }
+
+    [Fact]
+    public void ForShare_SkipLocked_ToQueryString_ThrowsConfigurationException()
+    {
+        using var ctx = new TestDbContext(
+            new DbContextOptionsBuilder<TestDbContext>()
+                .UseSqlServer(
+                    "Server=localhost;Database=SqlGeneration;Integrated Security=true;TrustServerCertificate=true"
+                )
+                .UseLocking()
+                .Options
+        );
+        Action generate = () => ctx.Products.ForShare(LockBehavior.SkipLocked).ToQueryString();
+        generate.Should().Throw<LockingConfigurationException>();
     }
 }

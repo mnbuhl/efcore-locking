@@ -28,6 +28,30 @@ public class ConcurrencyTests(SqlServerFixture fixture) : ConcurrencyTestsBase
         await ctx.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('[Categories]', RESEED, 0)");
     }
 
+    [Fact]
+    public async Task ForShare_ThroughWrappingProvider_BlocksWriterUntilRollback()
+    {
+        await using var reader = CreateContext();
+        var id = await SeedAsync(reader, "Wrapped shared lock");
+        await using var tx = await reader.Database.BeginTransactionAsync();
+        IQueryable<Product> wrapped = new WrappingQueryable<Product>(reader.Products);
+        (await wrapped.Where(p => p.Id == id).ForShare().FirstAsync()).Should().NotBeNull();
+
+        await using var writer = CreateContext();
+        await writer.Database.OpenConnectionAsync();
+        // An actual write requests an exclusive lock; SQL Server update-intent locks alone
+        // are compatible with the shared lock held by the wrapped query.
+        Func<Task> update = async () =>
+            await writer.Database.ExecuteSqlRawAsync(
+                "SET LOCK_TIMEOUT 500; UPDATE [Products] SET [Stock] = 5 WHERE [Id] = {0}",
+                id
+            );
+
+        await update.Should().ThrowAsync<LockTimeoutException>();
+        await tx.RollbackAsync();
+        await update.Should().NotThrowAsync();
+    }
+
     // --- SqlServer-specific ---
 
     [Theory]

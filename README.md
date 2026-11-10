@@ -315,6 +315,12 @@ SQL Server `ForShare()` uses `WITH (HOLDLOCK, ROWLOCK)`: shared readers can coex
 
 MySQL's `innodb_lock_wait_timeout` is in whole seconds, so sub-second timeouts are rounded up to 1 second.
 
+## Custom query providers
+
+Locking methods support custom `IAsyncQueryProvider` wrappers that forward query expressions to EF Core, including wrappers applied before `ForUpdate()` or `ForShare()`. The wrapper must preserve EF Core's `TagWith` expression when forwarding the query. This also applies to PostgreSQL's `ForNoKeyUpdate()` and `ForKeyShare()`.
+
+Calling a locking method on a synchronous non-EF query, such as `list.AsQueryable()`, throws `LockingConfigurationException` immediately. Such calls previously returned the query unchanged without applying a lock.
+
 ## Unsupported query shapes
 
 The following query shapes throw `LockingConfigurationException` at execution time:

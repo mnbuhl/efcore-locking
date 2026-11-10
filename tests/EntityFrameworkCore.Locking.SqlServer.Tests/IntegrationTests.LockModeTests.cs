@@ -8,12 +8,13 @@ namespace EntityFrameworkCore.Locking.SqlServer.Tests;
 public partial class IntegrationTests
 {
     [Fact]
-    public async Task ForShare_ThrowsLockingConfigurationException()
+    public async Task ForShare_SkipLocked_ThrowsLockingConfigurationException()
     {
         await using var ctx = CreateContext();
         await using var tx = await ctx.Database.BeginTransactionAsync();
 
-        Func<Task> act = async () => await ctx.Products.Where(p => p.Id == 1).ForShare().FirstOrDefaultAsync();
+        Func<Task> act = async () =>
+            await ctx.Products.Where(p => p.Id == 1).ForShare(LockBehavior.SkipLocked).FirstOrDefaultAsync();
         await act.Should().ThrowAsync<LockingConfigurationException>();
         await tx.RollbackAsync();
     }

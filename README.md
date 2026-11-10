@@ -66,7 +66,7 @@ var row = await ctx.Products
     .ForUpdate(LockBehavior.Wait, TimeSpan.FromMilliseconds(500))
     .FirstOrDefaultAsync();
 
-// Shared lock (PostgreSQL and MySQL only)
+// Shared lock
 var row = await ctx.Products
     .Where(p => p.Id == id)
     .ForShare()
@@ -128,7 +128,7 @@ await tx.CommitAsync();
 | `ForUpdate(LockBehavior.NoWait)` | `FOR UPDATE NOWAIT` / `SET LOCK_TIMEOUT 0` |
 | `ForUpdate(LockBehavior.SkipLocked)` | `FOR UPDATE SKIP LOCKED` (PG/MySQL) / `WITH (UPDLOCK, ROWLOCK, READPAST)` (SQL Server) |
 | `ForUpdate(LockBehavior.Wait, timeout)` | `SET LOCAL lock_timeout` (PG) / `SET SESSION innodb_lock_wait_timeout` (MySQL) / `SET LOCK_TIMEOUT` (SQL Server) |
-| `ForShare()` | `FOR SHARE` (PostgreSQL/MySQL only) |
+| `ForShare()` | `FOR SHARE` (PG/MySQL) / `WITH (HOLDLOCK, ROWLOCK)` (SQL Server) |
 | `ForNoKeyUpdate()` | `FOR NO KEY UPDATE` (PostgreSQL only) |
 | `ForKeyShare()` | `FOR KEY SHARE` (PostgreSQL only) |
 
@@ -300,14 +300,18 @@ catch (LockingConfigurationException)
 | Feature | PostgreSQL | MySQL | SQL Server |
 |---------|-----------|-------|-----------|
 | `ForUpdate` | ✓ | ✓ | ✓ |
-| `ForShare` | ✓ | ✓ | ✗ |
+| `ForShare` | ✓ | ✓ | ✓ (Wait / NoWait) |
 | `ForNoKeyUpdate` | ✓ | ✗ | ✗ |
 | `ForKeyShare` | ✓ | ✗ | ✗ |
-| `SkipLocked` | ✓ | ✓ | ✓ (via `READPAST`) |
+| `SkipLocked` | ✓ | ✓ | ✓ (`ForUpdate` via `READPAST`) |
 | `NoWait` | ✓ | ✓ | ✓ |
 | Wait with timeout | ✓ (ms) | ✓ (ceil to 1s) | ✓ (ms) |
 
-SQL Server uses `WITH (UPDLOCK, ROWLOCK, READPAST)` for `SkipLocked` — `READPAST` skips rows held under row-level or page-level locks, but rows under a table-level lock are blocked rather than skipped.
+SQL Server uses `WITH (UPDLOCK, ROWLOCK, READPAST)` for `SkipLocked` — `READPAST` skips row-level locks; page-level and table-level locks can still block.
+
+SQL Server `ForShare()` uses `WITH (HOLDLOCK, ROWLOCK)`: shared readers can coexist, while updates and deletes wait until the transaction commits or rolls back. `NoWait` and explicit wait timeouts use `SET LOCK_TIMEOUT`, as with `ForUpdate`. `ForShare(SkipLocked)` throws `LockingConfigurationException`: omitting `HOLDLOCK` would lose transaction-duration shared locking, and combining it with `READPAST` is not supported.
+
+`HOLDLOCK` applies SERIALIZABLE semantics to the hinted table, including key-range locks that may block inserts; this is stronger than PostgreSQL's `FOR SHARE`. It requests locking reads even under `READ_COMMITTED_SNAPSHOT` (RCSI) and SNAPSHOT isolation. `ROWLOCK` requests row/key granularity but does not prevent lock escalation. See [SQL Server table hints](https://learn.microsoft.com/en-us/sql/t-sql/queries/hints-transact-sql-table).
 
 MySQL's `innodb_lock_wait_timeout` is in whole seconds, so sub-second timeouts are rounded up to 1 second.
 

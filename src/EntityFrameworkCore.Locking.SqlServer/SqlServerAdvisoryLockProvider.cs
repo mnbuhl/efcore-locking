@@ -5,11 +5,12 @@ using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.Internal;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EntityFrameworkCore.Locking.SqlServer;
 
 /// <summary>
-/// SQL Server advisory lock provider using sp_getapplock / sp_releaseapplock with @LockOwner='Session'.
+/// SQL Server advisory lock provider using native session-owned or transaction-owned application locks.
 /// Return codes: 0/1=success, -1=LockTimeoutException, -2=OperationCanceledException,
 /// -3=DeadlockException, other negatives=LockAcquisitionFailedException.
 /// Cancellation registers ct.Register(() => cmd.Cancel()); SqlCommand.Cancel sends an attention signal.
@@ -95,20 +96,121 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         return BuildHandle(context, connection, key);
     }
 
+    public bool SupportsTransactionLocks => true;
+
+    public async Task<IDistributedLockHandle> AcquireAsync(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        CancellationToken ct,
+        DistributedLockMode mode,
+        DistributedLockScope scope
+    )
+    {
+        ValidateScope(scope);
+        if (scope == DistributedLockScope.Session)
+            return await AcquireAsync(context, connection, key, timeout, ct, mode).ConfigureAwait(false);
+
+        await ExecuteTransactionAsync(
+                context,
+                connection,
+                key,
+                TransactionDistributedLockTimeout.ToMilliseconds(timeout),
+                ct,
+                mode,
+                tryAcquire: false
+            )
+            .ConfigureAwait(false);
+        return new TransactionDistributedLockResult(key, true);
+    }
+
+    public async Task<IDistributedLockHandle?> TryAcquireAsync(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        CancellationToken ct,
+        DistributedLockMode mode,
+        DistributedLockScope scope
+    )
+    {
+        ValidateScope(scope);
+        if (scope == DistributedLockScope.Session)
+            return await TryAcquireAsync(context, connection, key, ct, mode).ConfigureAwait(false);
+
+        var acquired = await ExecuteTransactionAsync(context, connection, key, 0, ct, mode, tryAcquire: true)
+            .ConfigureAwait(false);
+        return new TransactionDistributedLockResult(key, acquired);
+    }
+
+    public IDistributedLockHandle Acquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        TimeSpan? timeout,
+        DistributedLockMode mode,
+        DistributedLockScope scope
+    )
+    {
+        ValidateScope(scope);
+        if (scope == DistributedLockScope.Session)
+            return Acquire(context, connection, key, timeout, mode);
+
+        ExecuteTransaction(
+            context,
+            connection,
+            key,
+            TransactionDistributedLockTimeout.ToMilliseconds(timeout),
+            mode,
+            tryAcquire: false
+        );
+        return new TransactionDistributedLockResult(key, true);
+    }
+
+    public IDistributedLockHandle? TryAcquire(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        DistributedLockMode mode,
+        DistributedLockScope scope
+    )
+    {
+        ValidateScope(scope);
+        if (scope == DistributedLockScope.Session)
+            return TryAcquire(context, connection, key, mode);
+
+        var acquired = ExecuteTransaction(context, connection, key, 0, mode, tryAcquire: true);
+        return new TransactionDistributedLockResult(key, acquired);
+    }
+
+    private static void ValidateScope(DistributedLockScope scope)
+    {
+        if (scope is not DistributedLockScope.Session and not DistributedLockScope.Transaction)
+            throw new LockingConfigurationException($"Unsupported distributed lock scope '{scope}'.");
+    }
+
     private static DbCommand BuildAcquireCommand(
         DbConnection connection,
         string key,
         int timeoutMs,
-        DistributedLockMode mode
+        DistributedLockMode mode,
+        DbContext? transactionContext = null
     )
     {
+        var sqlMode = ToSqlServerLockMode(mode);
         var cmd = connection.CreateCommand();
+        if (transactionContext is not null)
+        {
+            // The native lock budget, not the driver's default 30-second budget, governs acquisition.
+            cmd.CommandTimeout = 0;
+            cmd.Transaction = transactionContext.Database.CurrentTransaction?.GetDbTransaction();
+        }
         cmd.CommandType = CommandType.StoredProcedure;
         cmd.CommandText = "sp_getapplock";
 
         AddParam(cmd, "@Resource", key);
-        AddParam(cmd, "@LockMode", ToSqlServerLockMode(mode));
-        AddParam(cmd, "@LockOwner", "Session");
+        AddParam(cmd, "@LockMode", sqlMode);
+        AddParam(cmd, "@LockOwner", transactionContext is null ? "Session" : "Transaction");
         AddParam(cmd, "@LockTimeout", timeoutMs);
         AddParam(cmd, "@DbPrincipal", "public");
 
@@ -119,6 +221,79 @@ internal sealed class SqlServerAdvisoryLockProvider : IAdvisoryLockProvider
         cmd.Parameters.Add(returnParam);
 
         return cmd;
+    }
+
+    private static async Task<bool> ExecuteTransactionAsync(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        int timeoutMs,
+        CancellationToken ct,
+        DistributedLockMode mode,
+        bool tryAcquire
+    )
+    {
+        ct.ThrowIfCancellationRequested();
+        await using var command = BuildAcquireCommand(connection, key, timeoutMs, mode, context);
+        using var registration = ct.Register(static state => Cancel((DbCommand)state!), command);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+        catch (SqlException) when (ct.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(ct);
+        }
+        catch (SqlException exception) when (exception.Number == 1205)
+        {
+            throw new DeadlockException($"Deadlock detected acquiring distributed lock '{key}'.", exception);
+        }
+
+        return MapTransactionReturnCode(command, key, ct, tryAcquire);
+    }
+
+    private static bool ExecuteTransaction(
+        DbContext context,
+        DbConnection connection,
+        string key,
+        int timeoutMs,
+        DistributedLockMode mode,
+        bool tryAcquire
+    )
+    {
+        using var command = BuildAcquireCommand(connection, key, timeoutMs, mode, context);
+        try
+        {
+            command.ExecuteNonQuery();
+        }
+        catch (SqlException exception) when (exception.Number == 1205)
+        {
+            throw new DeadlockException($"Deadlock detected acquiring distributed lock '{key}'.", exception);
+        }
+
+        return MapTransactionReturnCode(command, key, default, tryAcquire);
+    }
+
+    private static void Cancel(DbCommand command)
+    {
+        // Cancellation is best effort: driver cancellation errors must not escape the token callback.
+        try
+        {
+            command.Cancel();
+        }
+        catch (Exception) { }
+    }
+
+    private static bool MapTransactionReturnCode(DbCommand command, string key, CancellationToken ct, bool tryAcquire)
+    {
+        var code = command.Parameters["@ReturnValue"].Value as int?;
+        if (code is null)
+            throw new LockAcquisitionFailedException($"sp_getapplock returned no return code for key '{key}'.");
+        if (code == -1 && tryAcquire)
+            return false;
+        MapReturnCode(code.Value, key, ct);
+        return true;
     }
 
     private static int GetReturnCode(DbCommand cmd) => (int)(cmd.Parameters["@ReturnValue"].Value ?? -999);

@@ -94,6 +94,7 @@ samples/InventoryApi/
 | `POST` | `/products/{id}/reserve-with-timeout?qty=N` | `ForUpdate(Wait, 500ms)` | Exclusive, wait up to 500 ms → 503 on timeout |
 | `POST` | `/inventory/snapshot` | `TryAcquireDistributedLock` | Advisory lock, non-blocking → 409 if already running |
 | `POST` | `/products/price-sync` | `AcquireDistributedLock(3s)` | Advisory lock, wait up to 3 s → 409 on timeout |
+| `POST` | `/products/price-sync-transaction` | `AcquireDistributedLock(3s, scope: Transaction)` | Advisory lock held until commit or rollback → 409 on timeout |
 
 **Example calls:**
 
@@ -115,7 +116,12 @@ curl -X POST http://localhost:5000/inventory/snapshot
 
 # Sync prices (advisory lock, waits up to 3 s — 409 on timeout)
 curl -X POST http://localhost:5000/products/price-sync
+
+# Sync prices with a transaction-owned advisory lock
+curl -X POST http://localhost:5000/products/price-sync-transaction
 ```
+
+The transaction-scoped price sync starts a transaction before acquiring the lock and disposes the handle before committing. The lock remains held until commit or rollback. It shares `products:price-sync` with the session-scoped sync and shared preview, so those operations coordinate on the same key.
 
 **API explorer:** Once running, open `http://localhost:5000/scalar` for the interactive Scalar UI (built on the .NET 10 OpenAPI endpoint at `/openapi/v1.json`).
 

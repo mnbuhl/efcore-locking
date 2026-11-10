@@ -280,4 +280,41 @@ app.MapPost(
     }
 );
 
+// POST /products/price-sync-transaction — the transaction owns the advisory lock's lifetime.
+// Shares the key with the session-scoped price sync and shared preview above.
+app.MapPost(
+    "/products/price-sync-transaction",
+    async (InventoryDbContext db, CancellationToken ct) =>
+    {
+        try
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            int synced;
+            await using (
+                await db.Database.AcquireDistributedLockAsync(
+                    "products:price-sync",
+                    timeout: TimeSpan.FromSeconds(3),
+                    ct: ct,
+                    scope: DistributedLockScope.Transaction
+                )
+            )
+            {
+                var products = await db.Products.ToListAsync(ct);
+                foreach (var product in products)
+                    product.Price = Math.Round(product.Price * 1.05m, 2);
+
+                await db.SaveChangesAsync(ct);
+                synced = products.Count;
+            } // Disposing the handle leaves the transaction lock held.
+
+            await tx.CommitAsync(ct); // The database releases the lock here.
+            return Results.Ok(new { synced });
+        }
+        catch (LockTimeoutException)
+        {
+            return Results.Conflict(new { error = "Price sync is already running. Try again shortly." });
+        }
+    }
+);
+
 app.Run();

@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Transactions;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using EntityFrameworkCore.Locking.Internal;
@@ -13,8 +14,14 @@ namespace EntityFrameworkCore.Locking;
 
 /// <summary>
 /// Extension methods on <see cref="DatabaseFacade"/> (accessed via <c>DbContext.Database</c>) for
-/// acquiring distributed (advisory) locks. No active transaction is required — locks are session-scoped.
+/// acquiring session-scoped or transaction-scoped distributed (advisory) locks.
 /// </summary>
+/// <remarks>
+/// Transaction scope uses the caller's existing transaction and never opens/closes the connection or creates/enlists a transaction.
+/// The transaction owns the lock lifetime; releasing or disposing its result is a no-op.
+/// IsAcquired records the acquisition outcome and does not track transaction completion or native savepoint rollback.
+/// After a transaction acquisition failure, roll back the transaction before continuing.
+/// </remarks>
 public static class DatabaseFacadeDistributedLockExtensions
 {
     /// <summary>
@@ -25,9 +32,10 @@ public static class DatabaseFacadeDistributedLockExtensions
     /// <param name="timeout">Maximum time to wait. Throws <see cref="LockTimeoutException"/> if exceeded. Null = wait indefinitely.</param>
     /// <param name="ct">Cancellation token. Cancellation is best-effort (driver-dependent).</param>
     /// <param name="mode">Distributed lock mode. Defaults to exclusive.</param>
+    /// <param name="scope">Session by default; Transaction requires an open connection and an active EF transaction or explicitly EF-enlisted ambient transaction.</param>
     /// <exception cref="LockingConfigurationException">
     /// Thrown if the key is null, empty, or longer than 255 characters; if no locking provider is
-    /// registered; or if the provider does not support distributed locks.
+    /// registered; if the provider does not support the requested scope; or if transaction setup or scope is invalid.
     /// </exception>
     /// <exception cref="LockTimeoutException">
     /// Thrown if <paramref name="timeout"/> is exceeded before the lock can be acquired.
@@ -37,88 +45,40 @@ public static class DatabaseFacadeDistributedLockExtensions
         string key,
         TimeSpan? timeout = null,
         CancellationToken ct = default,
-        DistributedLockMode mode = DistributedLockMode.Exclusive
-    )
-    {
-        var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct, mode).ConfigureAwait(false);
-        try
-        {
-            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
-            try
-            {
-                return await provider.AcquireAsync(ctx, connection, key, timeout, ct, mode).ConfigureAwait(false);
-            }
-            catch
-            {
-                DistributedLockRegistry.Unregister(ctx, connection, key);
-                throw;
-            }
-        }
-        catch
-        {
-            if (openedByMe)
-                await connection.CloseAsync().ConfigureAwait(false);
-            throw;
-        }
-    }
+        DistributedLockMode mode = DistributedLockMode.Exclusive,
+        DistributedLockScope scope = DistributedLockScope.Session
+    ) => (await AcquireCoreAsync(database, key, timeout, ct, mode, scope, tryAcquire: false).ConfigureAwait(false))!;
 
     /// <summary>
     /// Attempts to acquire a distributed lock without blocking.
-    /// Returns null immediately if the lock is held by another connection.
+    /// For Session, returns null immediately on contention. For Transaction, returns a non-null result with IsAcquired=false.
     /// </summary>
     /// <param name="database">The <see cref="DatabaseFacade"/> whose connection will hold the lock.</param>
     /// <param name="key">Lock key (1–255 characters).</param>
     /// <param name="ct">Cancellation token. Cancellation is best-effort (driver-dependent).</param>
     /// <param name="mode">Distributed lock mode. Defaults to exclusive.</param>
+    /// <param name="scope">Session by default; Transaction requires an open connection and an active EF transaction or explicitly EF-enlisted ambient transaction.</param>
     /// <exception cref="LockingConfigurationException">
     /// Thrown if the key is null, empty, or longer than 255 characters; if no locking provider is
-    /// registered; or if the provider does not support distributed locks.
+    /// registered; if the provider does not support the requested scope; or if transaction setup or scope is invalid.
     /// </exception>
-    /// <returns>A lock handle, or <c>null</c> if the lock is currently held by another connection.</returns>
-    public static async Task<IDistributedLockHandle?> TryAcquireDistributedLockAsync(
+    /// <returns>A session handle or null on contention; for Transaction, an immutable non-null IsAcquired result whose release/disposal are no-ops.</returns>
+    public static Task<IDistributedLockHandle?> TryAcquireDistributedLockAsync(
         this DatabaseFacade database,
         string key,
         CancellationToken ct = default,
-        DistributedLockMode mode = DistributedLockMode.Exclusive
-    )
-    {
-        var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct, mode).ConfigureAwait(false);
-        try
-        {
-            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
-            IDistributedLockHandle? handle;
-            try
-            {
-                handle = await provider.TryAcquireAsync(ctx, connection, key, ct, mode).ConfigureAwait(false);
-            }
-            catch
-            {
-                DistributedLockRegistry.Unregister(ctx, connection, key);
-                throw;
-            }
-            if (handle is null)
-            {
-                DistributedLockRegistry.Unregister(ctx, connection, key);
-                if (openedByMe)
-                    await connection.CloseAsync().ConfigureAwait(false);
-            }
-            return handle;
-        }
-        catch
-        {
-            if (openedByMe)
-                await connection.CloseAsync().ConfigureAwait(false);
-            throw;
-        }
-    }
+        DistributedLockMode mode = DistributedLockMode.Exclusive,
+        DistributedLockScope scope = DistributedLockScope.Session
+    ) => AcquireCoreAsync(database, key, null, ct, mode, scope, tryAcquire: true);
 
     /// <summary>Acquires a distributed lock synchronously.</summary>
     /// <param name="database">The <see cref="DatabaseFacade"/> whose connection will hold the lock.</param>
     /// <param name="key">Lock key (1–255 characters).</param>
     /// <param name="timeout">Maximum time to wait. Null = wait indefinitely.</param>
     /// <param name="mode">Distributed lock mode. Defaults to exclusive.</param>
+    /// <param name="scope">Session by default; Transaction requires an open connection and an active EF transaction or explicitly EF-enlisted ambient transaction.</param>
     /// <exception cref="LockingConfigurationException">
-    /// Thrown if the key is invalid, no provider is registered, or the provider does not support distributed locks.
+    /// Thrown if the key, scope, or transaction setup is invalid, no provider is registered, or the requested scope is unsupported.
     /// </exception>
     /// <exception cref="LockTimeoutException">
     /// Thrown if <paramref name="timeout"/> is exceeded before the lock can be acquired.
@@ -127,62 +87,126 @@ public static class DatabaseFacadeDistributedLockExtensions
         this DatabaseFacade database,
         string key,
         TimeSpan? timeout = null,
-        DistributedLockMode mode = DistributedLockMode.Exclusive
+        DistributedLockMode mode = DistributedLockMode.Exclusive,
+        DistributedLockScope scope = DistributedLockScope.Session
+    ) => AcquireCore(database, key, timeout, mode, scope, tryAcquire: false)!;
+
+    /// <summary>Attempts a distributed lock synchronously; Session returns null on contention, Transaction returns IsAcquired=false.</summary>
+    /// <param name="database">The <see cref="DatabaseFacade"/> whose connection will hold the lock.</param>
+    /// <param name="key">Lock key (1–255 characters).</param>
+    /// <param name="mode">Distributed lock mode. Defaults to exclusive.</param>
+    /// <param name="scope">Session by default; Transaction requires an open connection and an active EF transaction or explicitly EF-enlisted ambient transaction.</param>
+    /// <exception cref="LockingConfigurationException">
+    /// Thrown if the key, scope, or transaction setup is invalid, no provider is registered, or the requested scope is unsupported.
+    /// </exception>
+    /// <returns>A session handle or null on contention; for Transaction, an immutable non-null IsAcquired result whose release/disposal are no-ops.</returns>
+    public static IDistributedLockHandle? TryAcquireDistributedLock(
+        this DatabaseFacade database,
+        string key,
+        DistributedLockMode mode = DistributedLockMode.Exclusive,
+        DistributedLockScope scope = DistributedLockScope.Session
+    ) => AcquireCore(database, key, null, mode, scope, tryAcquire: true);
+
+    /// <summary>Acquires a session-scoped lock using the original overload.</summary>
+    public static Task<IDistributedLockHandle> AcquireDistributedLockAsync(
+        this DatabaseFacade database,
+        string key,
+        TimeSpan? timeout,
+        CancellationToken ct,
+        DistributedLockMode mode
+    ) => AcquireDistributedLockAsync(database, key, timeout, ct, mode, DistributedLockScope.Session);
+
+    /// <summary>Attempts a session-scoped lock using the original overload.</summary>
+    public static Task<IDistributedLockHandle?> TryAcquireDistributedLockAsync(
+        this DatabaseFacade database,
+        string key,
+        CancellationToken ct,
+        DistributedLockMode mode
+    ) => TryAcquireDistributedLockAsync(database, key, ct, mode, DistributedLockScope.Session);
+
+    /// <summary>Acquires a session-scoped lock using the original overload.</summary>
+    public static IDistributedLockHandle AcquireDistributedLock(
+        this DatabaseFacade database,
+        string key,
+        TimeSpan? timeout,
+        DistributedLockMode mode
+    ) => AcquireDistributedLock(database, key, timeout, mode, DistributedLockScope.Session);
+
+    /// <summary>Attempts a session-scoped lock using the original overload.</summary>
+    public static IDistributedLockHandle? TryAcquireDistributedLock(
+        this DatabaseFacade database,
+        string key,
+        DistributedLockMode mode
+    ) => TryAcquireDistributedLock(database, key, mode, DistributedLockScope.Session);
+
+    // Only a contested session Try can return null; blocking acquisition calls non-null provider methods.
+    private static async Task<IDistributedLockHandle?> AcquireCoreAsync(
+        DatabaseFacade database,
+        string key,
+        TimeSpan? timeout,
+        CancellationToken ct,
+        DistributedLockMode mode,
+        DistributedLockScope scope,
+        bool tryAcquire
     )
     {
-        var (ctx, provider, connection, openedByMe) = PrepareSync(database, key, mode);
+        var (ctx, provider, connection, openedByMe) = await PrepareAsync(database, key, ct, mode, scope, timeout)
+            .ConfigureAwait(false);
+        bool registered = false;
         try
         {
-            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
-            try
+            if (scope == DistributedLockScope.Session)
             {
-                return provider.Acquire(ctx, connection, key, timeout, mode);
+                DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
+                registered = true;
             }
-            catch
+            var handle = tryAcquire
+                ? await provider.TryAcquireAsync(ctx, connection, key, ct, mode, scope).ConfigureAwait(false)
+                : await provider.AcquireAsync(ctx, connection, key, timeout, ct, mode, scope).ConfigureAwait(false);
+            if (tryAcquire && registered && handle is null)
             {
                 DistributedLockRegistry.Unregister(ctx, connection, key);
-                throw;
+                registered = false;
+                if (openedByMe)
+                    await connection.CloseAsync().ConfigureAwait(false);
             }
+            return handle;
         }
         catch
         {
+            if (registered)
+                DistributedLockRegistry.Unregister(ctx, connection, key);
             if (openedByMe)
-                connection.Close();
+                await connection.CloseAsync().ConfigureAwait(false);
             throw;
         }
     }
 
-    /// <summary>Attempts to acquire a distributed lock synchronously. Returns null if contested.</summary>
-    /// <param name="database">The <see cref="DatabaseFacade"/> whose connection will hold the lock.</param>
-    /// <param name="key">Lock key (1–255 characters).</param>
-    /// <param name="mode">Distributed lock mode. Defaults to exclusive.</param>
-    /// <exception cref="LockingConfigurationException">
-    /// Thrown if the key is invalid, no provider is registered, or the provider does not support distributed locks.
-    /// </exception>
-    /// <returns>A lock handle, or <c>null</c> if the lock is currently held by another connection.</returns>
-    public static IDistributedLockHandle? TryAcquireDistributedLock(
-        this DatabaseFacade database,
+    private static IDistributedLockHandle? AcquireCore(
+        DatabaseFacade database,
         string key,
-        DistributedLockMode mode = DistributedLockMode.Exclusive
+        TimeSpan? timeout,
+        DistributedLockMode mode,
+        DistributedLockScope scope,
+        bool tryAcquire
     )
     {
-        var (ctx, provider, connection, openedByMe) = PrepareSync(database, key, mode);
+        var (ctx, provider, connection, openedByMe) = PrepareSync(database, key, mode, scope, timeout);
+        bool registered = false;
         try
         {
-            DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
-            IDistributedLockHandle? handle;
-            try
+            if (scope == DistributedLockScope.Session)
             {
-                handle = provider.TryAcquire(ctx, connection, key, mode);
+                DistributedLockRegistry.RegisterOrThrow(ctx, connection, key, mode);
+                registered = true;
             }
-            catch
+            var handle = tryAcquire
+                ? provider.TryAcquire(ctx, connection, key, mode, scope)
+                : provider.Acquire(ctx, connection, key, timeout, mode, scope);
+            if (tryAcquire && registered && handle is null)
             {
                 DistributedLockRegistry.Unregister(ctx, connection, key);
-                throw;
-            }
-            if (handle is null)
-            {
-                DistributedLockRegistry.Unregister(ctx, connection, key);
+                registered = false;
                 if (openedByMe)
                     connection.Close();
             }
@@ -190,6 +214,8 @@ public static class DatabaseFacadeDistributedLockExtensions
         }
         catch
         {
+            if (registered)
+                DistributedLockRegistry.Unregister(ctx, connection, key);
             if (openedByMe)
                 connection.Close();
             throw;
@@ -203,13 +229,88 @@ public static class DatabaseFacadeDistributedLockExtensions
         return lp?.AdvisoryLockProvider is not null;
     }
 
+    /// <summary>Whether the configured provider supports native transaction-scoped distributed locks.</summary>
+    /// <remarks>This reports capability only, not whether the connection or transaction is ready.</remarks>
+    public static bool SupportsTransactionDistributedLocks(this DatabaseFacade database)
+    {
+        var lp = ((IInfrastructure<IServiceProvider>)database).Instance.GetService<ILockingProvider>();
+        return lp?.AdvisoryLockProvider?.SupportsTransactionLocks ?? false;
+    }
+
+    private static (DbContext ctx, IAdvisoryLockProvider provider, DbConnection connection) PrepareTransaction(
+        DatabaseFacade database,
+        string key,
+        DistributedLockMode mode,
+        TimeSpan? timeout = null
+    )
+    {
+        ValidateKey(key);
+        _ = TransactionDistributedLockTimeout.ToMilliseconds(timeout);
+        var provider = ResolveProvider(database, DistributedLockScope.Transaction);
+        provider.ValidateMode(mode);
+        var connection = database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            throw new LockingConfigurationException(
+                "Transaction distributed locks require an already-open connection. The caller must open and enlist it first."
+            );
+
+        try
+        {
+            if (database.CurrentTransaction is { } transaction)
+            {
+                if (transaction.GetDbTransaction().Connection != connection)
+                    throw new LockingConfigurationException(
+                        "The EF transaction must be active and belong to this connection."
+                    );
+            }
+            else
+            {
+                var ambient = System.Transactions.Transaction.Current;
+                var enlisted = database.GetEnlistedTransaction();
+                if (
+                    ambient is null
+                    || enlisted is null
+                    || !ambient.Equals(enlisted)
+                    || ambient.TransactionInformation.Status != System.Transactions.TransactionStatus.Active
+                    || enlisted.TransactionInformation.Status != System.Transactions.TransactionStatus.Active
+                )
+                    throw new LockingConfigurationException(
+                        "Transaction distributed locks require an active EF transaction or a matching ambient transaction explicitly enlisted through Database.EnlistTransaction(Transaction.Current)."
+                    );
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            throw new LockingConfigurationException(
+                "Transaction distributed locks require an active transaction whose enlistment can be inspected.",
+                ex
+            );
+        }
+
+        return (GetContext(database), provider, connection);
+    }
+
     private static async Task<(
         DbContext ctx,
         IAdvisoryLockProvider provider,
         DbConnection connection,
         bool openedByMe
-    )> PrepareAsync(DatabaseFacade database, string key, CancellationToken ct, DistributedLockMode mode)
+    )> PrepareAsync(
+        DatabaseFacade database,
+        string key,
+        CancellationToken ct,
+        DistributedLockMode mode,
+        DistributedLockScope scope,
+        TimeSpan? timeout
+    )
     {
+        ValidateScope(scope);
+        if (scope == DistributedLockScope.Transaction)
+        {
+            ct.ThrowIfCancellationRequested();
+            var prepared = PrepareTransaction(database, key, mode, timeout);
+            return (prepared.ctx, prepared.provider, prepared.connection, false);
+        }
         ValidateKey(key);
         var ctx = GetContext(database);
         var provider = ResolveProvider(database);
@@ -229,8 +330,20 @@ public static class DatabaseFacadeDistributedLockExtensions
         IAdvisoryLockProvider provider,
         DbConnection connection,
         bool openedByMe
-    ) PrepareSync(DatabaseFacade database, string key, DistributedLockMode mode)
+    ) PrepareSync(
+        DatabaseFacade database,
+        string key,
+        DistributedLockMode mode,
+        DistributedLockScope scope,
+        TimeSpan? timeout
+    )
     {
+        ValidateScope(scope);
+        if (scope == DistributedLockScope.Transaction)
+        {
+            var prepared = PrepareTransaction(database, key, mode, timeout);
+            return (prepared.ctx, prepared.provider, prepared.connection, false);
+        }
         ValidateKey(key);
         var ctx = GetContext(database);
         var provider = ResolveProvider(database);
@@ -245,6 +358,12 @@ public static class DatabaseFacadeDistributedLockExtensions
         return (ctx, provider, connection, openedByMe);
     }
 
+    private static void ValidateScope(DistributedLockScope scope)
+    {
+        if (scope is not DistributedLockScope.Session and not DistributedLockScope.Transaction)
+            throw new LockingConfigurationException($"Unsupported distributed lock scope: {scope}.");
+    }
+
     private static void ValidateKey(string key)
     {
         if (string.IsNullOrEmpty(key))
@@ -256,17 +375,21 @@ public static class DatabaseFacadeDistributedLockExtensions
     private static DbContext GetContext(DatabaseFacade database) =>
         ((IDatabaseFacadeDependenciesAccessor)database).Context;
 
-    private static IAdvisoryLockProvider ResolveProvider(DatabaseFacade database)
+    private static IAdvisoryLockProvider ResolveProvider(
+        DatabaseFacade database,
+        DistributedLockScope scope = DistributedLockScope.Session
+    )
     {
         var lp = ((IInfrastructure<IServiceProvider>)database).Instance.GetService<ILockingProvider>();
         if (lp is null)
             throw new LockingConfigurationException(
                 "No ILockingProvider is registered. Call UseLocking() when configuring the DbContext."
             );
-        if (lp.AdvisoryLockProvider is null)
+        var provider = lp.AdvisoryLockProvider;
+        if (provider is null || (scope == DistributedLockScope.Transaction && !provider.SupportsTransactionLocks))
             throw new LockingConfigurationException(
-                $"The '{lp.ProviderName}' provider does not support distributed locks."
+                $"The '{lp.ProviderName}' provider does not support {scope.ToString().ToLowerInvariant()} distributed locks."
             );
-        return lp.AdvisoryLockProvider;
+        return provider;
     }
 }

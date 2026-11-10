@@ -406,7 +406,7 @@ internal sealed class FakeExceptionTranslator : IExceptionTranslator
 
 // --- Fake IAdvisoryLockProvider backed by an in-memory set ---
 
-internal sealed class FakeAdvisoryLockProvider : IAdvisoryLockProvider
+internal class FakeAdvisoryLockProvider : IAdvisoryLockProvider
 {
     // Tracks which keys are held per connection (simulates session-scoped locks)
     private readonly Dictionary<DbConnection, HashSet<string>> _held = new();

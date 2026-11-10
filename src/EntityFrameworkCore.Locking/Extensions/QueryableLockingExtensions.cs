@@ -1,5 +1,4 @@
 using EntityFrameworkCore.Locking.Internal;
-using Microsoft.EntityFrameworkCore;
 
 // ReSharper disable once CheckNamespace
 namespace EntityFrameworkCore.Locking;
@@ -11,7 +10,8 @@ public static class QueryableLockingExtensions
     /// Requires an active transaction on the DbContext.
     /// </summary>
     /// <exception cref="Exceptions.LockingConfigurationException">
-    /// Thrown at query execution time if no ambient transaction exists, or if the query shape is
+    /// Thrown when the source does not support EF Core async queries, or at query execution time
+    /// if no ambient transaction exists, or if the query shape is
     /// incompatible with row locking: DISTINCT, GROUP BY, set operations (Union/Except/Intersect),
     /// or split queries (AsSplitQuery).
     /// </exception>
@@ -28,8 +28,7 @@ public static class QueryableLockingExtensions
             Behavior = behavior,
             Timeout = timeout,
         };
-        LockContext.Current = options;
-        return source.TagWith(LockTagConstants.BuildTag(options));
+        return LockTagApplicator.Apply(source, options);
     }
 
     /// <summary>
@@ -37,7 +36,8 @@ public static class QueryableLockingExtensions
     /// Requires an active transaction on the DbContext.
     /// </summary>
     /// <exception cref="Exceptions.LockingConfigurationException">
-    /// Thrown at query execution time if no ambient transaction exists, or if the query shape is
+    /// Thrown when the source does not support EF Core async queries, or at query execution time
+    /// if no ambient transaction exists, or if the query shape is
     /// incompatible with row locking: DISTINCT, GROUP BY, set operations (Union/Except/Intersect),
     /// or split queries (AsSplitQuery).
     /// </exception>
@@ -54,7 +54,6 @@ public static class QueryableLockingExtensions
             Behavior = behavior,
             Timeout = timeout,
         };
-        LockContext.Current = options;
-        return source.TagWith(LockTagConstants.BuildTag(options));
+        return LockTagApplicator.Apply(source, options);
     }
 }

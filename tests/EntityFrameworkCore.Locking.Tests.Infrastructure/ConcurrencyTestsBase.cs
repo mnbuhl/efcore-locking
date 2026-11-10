@@ -43,6 +43,29 @@ public abstract class ConcurrencyTestsBase : IAsyncLifetime
         return p.Id;
     }
 
+    [Fact]
+    public async Task ForUpdate_ThroughWrappingProvider_BlocksSecondTransaction()
+    {
+        await using var seed = CreateContext();
+        var id = await SeedAsync(seed, "Wrapped lock");
+        await using var ctxA = CreateContext();
+        await using var txA = await ctxA.Database.BeginTransactionAsync();
+        IQueryable<Product> wrapped = new WrappingQueryable<Product>(ctxA.Products);
+        (await wrapped.Where(p => p.Id == id).ForUpdate().FirstOrDefaultAsync()).Should().NotBeNull();
+
+        await using var ctxB = CreateContext();
+        await using var txB = await ctxB.Database.BeginTransactionAsync();
+        Func<Task> acquire = async () =>
+            await ctxB.Products.Where(p => p.Id == id).ForUpdate(LockBehavior.NoWait).FirstAsync();
+        await acquire.Should().ThrowAsync<LockTimeoutException>();
+        await txB.RollbackAsync();
+        await txA.RollbackAsync();
+
+        await using var txAfterRelease = await ctxB.Database.BeginTransactionAsync();
+        (await ctxB.Products.Where(p => p.Id == id).ForUpdate(LockBehavior.NoWait).FirstAsync()).Id.Should().Be(id);
+        await txAfterRelease.RollbackAsync();
+    }
+
     // --- SkipLocked ---
 
     [Fact]

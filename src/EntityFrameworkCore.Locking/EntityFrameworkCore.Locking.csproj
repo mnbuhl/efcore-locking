@@ -3,7 +3,7 @@
     <PackageId>EntityFrameworkCore.Locking</PackageId>
     <Description>Row-level locking for EF Core via ForUpdate() and ForShare() LINQ extension methods.</Description>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -11,9 +11,11 @@
     <NoWarn>$(NoWarn);EF1001</NoWarn>
   </PropertyGroup>
 
-  <!-- Compile against the EF 8 floor across all TFMs. Only APIs that are signature-stable
-       across EF 8/9/10 are used, so the same IL resolves at runtime on any EF major >= 8. -->
+  <!-- Compile against the EF Core 10 floor; compatibility tests exercise newer supported majors. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="[8.0.0,)" />
+    <PackageReference
+      Include="Microsoft.EntityFrameworkCore.Relational"
+      Version="[10.0.0,12.0.0)"
+    />
   </ItemGroup>
 </Project>

@@ -1,7 +1,7 @@
 using EntityFrameworkCore.Locking.Abstractions;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Storage;
-using Pomelo.EntityFrameworkCore.MySql.Infrastructure.Internal;
+using Microting.EntityFrameworkCore.MySql.Infrastructure.Internal;
 
 namespace EntityFrameworkCore.Locking.MySql;
 

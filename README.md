@@ -367,7 +367,7 @@ versions NuGet can resolve.
 |----------|------------|----------------------|
 | PostgreSQL | Npgsql `[10.0.0,12.0.0)` | Stable EF Core 10 on .NET 10 and 11; stable Npgsql 11 is not yet available. |
 | SQL Server | Microsoft SQL Server `[10.0.0,12.0.0)` | EF Core 10 on .NET 10 and 11; EF Core 11 on .NET 11. |
-| MySQL / MariaDB | Microting `[10.0.14,12.0.0)` | Stable EF Core 10 on .NET 10 and 11. Microting 10.0.14 requires EF Core 10.0.14–10.0.999. |
+| MySQL / MariaDB | Microting `[10.0.6,12.0.0)` | Stable EF Core 10 on .NET 10 and 11. Microting 10.0.6 requires EF Core 10.0.6–10.0.999. |
 
 The dependency ranges allow future compatible provider releases; they do not
 establish compatibility with unpublished releases. CI tests the combinations
@@ -377,7 +377,8 @@ listed above. EF Core 11 requires .NET 11.
 
 The MySQL package now uses `Microting.EntityFrameworkCore.MySql`. Replace direct
 `Pomelo.EntityFrameworkCore.MySql` package references and provider namespace imports
-with their `Microting.EntityFrameworkCore.MySql` equivalents. Keep calling
+with their `Microting.EntityFrameworkCore.MySql` equivalents. Version 10.0.6 is the
+minimum because it introduced the renamed assembly and namespaces. Keep calling
 `UseMySql(...).UseLocking()` as before. Remove Pomelo references to avoid loading
 two MySQL providers.
 

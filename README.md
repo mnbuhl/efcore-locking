@@ -391,6 +391,8 @@ dotnet run -c Release --project benchmarks/EntityFrameworkCore.Locking.Benchmark
 
 Latest results: [v0.6.1 benchmark summary](benchmarks/EntityFrameworkCore.Locking.Benchmarks/results/v0.6.1/README.md).
 
+Optimization comparison: [leading lock-tag scan](benchmarks/EntityFrameworkCore.Locking.Benchmarks/results/vlock-tag-scan/README.md).
+
 ## License
 
 [MIT](LICENSE)

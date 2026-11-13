@@ -14,17 +14,24 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.MySql" Version="3.10.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="3.10.0" />
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
   </ItemGroup>
 
-  <!-- EF provider baseline versions for CPM. Library projects set their own floor-pinned
-       PackageReference (Version="[8.0.0,)") directly and disable CPM; these entries remain
-       as CPM baselines for test/sample/benchmark projects. Individual test projects may
-       VersionOverride to a newer EF major where newer test APIs are required. -->
+  <!-- Stable EF Core 10 baselines for tests and benchmarks. Library
+       projects disable CPM and declare bounded dependency ranges themselves. -->
+  <PropertyGroup>
+    <SqlServerEfCoreVersion Condition="'$(SqlServerEfCoreVersion)' == ''"
+      >10.0.0</SqlServerEfCoreVersion
+    >
+  </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.14" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
-    <PackageVersion Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.3" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <!-- Microting 10.0.6 is the first stable release with the Microting assembly and namespaces. -->
+    <PackageVersion Include="Microting.EntityFrameworkCore.MySql" Version="10.0.6" />
+    <PackageVersion
+      Include="Microsoft.EntityFrameworkCore.SqlServer"
+      Version="$(SqlServerEfCoreVersion)"
+    />
   </ItemGroup>
 </Project>

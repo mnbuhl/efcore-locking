@@ -5,106 +5,59 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        dotnet: ['8.0.x', '9.0.x', '10.0.x']
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET ${{ matrix.dotnet }}
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ matrix.dotnet }}
-          
+          dotnet-version: |
+            10.0.x
+            11.0.x
       - name: Install tools
         run: dotnet tool restore
-        
       - name: Check formatting
         run: dotnet csharpier check .
-
       - name: Restore
         run: dotnet restore
-
       - name: Build
         run: dotnet build --no-restore --configuration Release
+      - name: Pack
+        run: dotnet pack --no-build --configuration Release --output ./artifacts
 
-  test-postgres:
+  test:
+    name: ${{ matrix.project }} (${{ matrix.framework }}, EF ${{ matrix.sqlserver-ef }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        dotnet: ['8.0.x', '9.0.x', '10.0.x']
-
+        project: [Tests, PostgreSQL.Tests, MySql.Tests, SqlServer.Tests]
+        framework: [net10.0, net11.0]
+        sqlserver-ef: ['10.0.0']
+        include:
+          - project: Tests
+            framework: net11.0
+            sqlserver-ef: '11.0.0'
+          - project: SqlServer.Tests
+            framework: net11.0
+            sqlserver-ef: '11.0.0'
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET ${{ matrix.dotnet }}
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ matrix.dotnet }}
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Test (PostgreSQL)
+          dotnet-version: |
+            10.0.x
+            11.0.x
+      - name: Test
         run: >
-          dotnet test tests/EntityFrameworkCore.Locking.PostgreSQL.Tests
-          --no-restore --configuration Release
-          --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
-          --logger "console;verbosity=normal"
-
-  test-mysql:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        dotnet: ['8.0.x', '9.0.x', '10.0.x']
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET ${{ matrix.dotnet }}
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ matrix.dotnet }}
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Test (MySQL)
-        run: >
-          dotnet test tests/EntityFrameworkCore.Locking.MySql.Tests
-          --no-restore --configuration Release
-          --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
-          --logger "console;verbosity=normal"
-
-  test-sqlserver:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        dotnet: ['8.0.x', '9.0.x', '10.0.x']
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET ${{ matrix.dotnet }}
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ matrix.dotnet }}
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Test (SQL Server)
-        run: >
-          dotnet test tests/EntityFrameworkCore.Locking.SqlServer.Tests
-          --no-restore --configuration Release
-          --framework net${{ matrix.dotnet == '10.0.x' && '10.0' || matrix.dotnet == '9.0.x' && '9.0' || '8.0' }}
+          dotnet test tests/EntityFrameworkCore.Locking.${{ matrix.project }}
+          --configuration Release
+          --framework ${{ matrix.framework }}
+          -p:TargetFrameworks=${{ matrix.framework }}
+          -p:SqlServerEfCoreVersion=${{ matrix.sqlserver-ef }}
           --logger "console;verbosity=normal"

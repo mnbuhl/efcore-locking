@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>EntityFrameworkCore.Locking.Benchmarks.Benchmarks.SqlGenerationBenchmarks-20261113-152144</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.7.2 (25G332) [Darwin 25.6.0]
+Unknown processor
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+  DefaultJob : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                    </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Postgres_NoLock</td><td>2.981 &mu;s</td><td>0.0588 &mu;s</td><td>0.1463 &mu;s</td><td>2.934 &mu;s</td><td>1.00</td><td>0.07</td><td>0.0343</td><td>4.16 KB</td><td>1.00</td>
+</tr><tr><td>Postgres_ForUpdate</td><td>5.047 &mu;s</td><td>0.0813 &mu;s</td><td>0.0798 &mu;s</td><td>5.045 &mu;s</td><td>1.70</td><td>0.08</td><td>0.0305</td><td>6.02 KB</td><td>1.45</td>
+</tr><tr><td>Postgres_ForUpdate_WithTimeout</td><td>5.023 &mu;s</td><td>0.0946 &mu;s</td><td>0.0839 &mu;s</td><td>5.024 &mu;s</td><td>1.69</td><td>0.08</td><td>0.0305</td><td>6.05 KB</td><td>1.46</td>
+</tr><tr><td>Postgres_ForUpdate_MultipleTags</td><td>8.199 &mu;s</td><td>0.1175 &mu;s</td><td>0.1099 &mu;s</td><td>8.225 &mu;s</td><td>2.76</td><td>0.13</td><td>0.0610</td><td>9.16 KB</td><td>2.20</td>
+</tr><tr><td>MySql_NoLock</td><td>2.926 &mu;s</td><td>0.0522 &mu;s</td><td>0.0436 &mu;s</td><td>2.915 &mu;s</td><td>0.98</td><td>0.05</td><td>0.0305</td><td>4.46 KB</td><td>1.07</td>
+</tr><tr><td>MySql_ForUpdate</td><td>5.135 &mu;s</td><td>0.0946 &mu;s</td><td>0.1327 &mu;s</td><td>5.101 &mu;s</td><td>1.73</td><td>0.09</td><td>0.0305</td><td>6.33 KB</td><td>1.52</td>
+</tr><tr><td>MySql_ForUpdate_MultipleTags</td><td>8.242 &mu;s</td><td>0.1130 &mu;s</td><td>0.1002 &mu;s</td><td>8.238 &mu;s</td><td>2.77</td><td>0.13</td><td>0.0610</td><td>9.47 KB</td><td>2.28</td>
+</tr><tr><td>SqlServer_NoLock</td><td>3.031 &mu;s</td><td>0.0589 &mu;s</td><td>0.0523 &mu;s</td><td>3.019 &mu;s</td><td>1.02</td><td>0.05</td><td>0.0305</td><td>4.48 KB</td><td>1.08</td>
+</tr><tr><td>SqlServer_ForUpdate</td><td>5.089 &mu;s</td><td>0.0966 &mu;s</td><td>0.0807 &mu;s</td><td>5.076 &mu;s</td><td>1.71</td><td>0.08</td><td>0.0305</td><td>6.34 KB</td><td>1.53</td>
+</tr><tr><td>SqlServer_ForUpdate_MultipleTags</td><td>8.874 &mu;s</td><td>0.1576 &mu;s</td><td>0.2157 &mu;s</td><td>8.843 &mu;s</td><td>2.98</td><td>0.16</td><td>0.0610</td><td>9.48 KB</td><td>2.28</td>
+</tr></tbody></table>
+</body>
+</html>

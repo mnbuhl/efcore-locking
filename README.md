@@ -389,6 +389,8 @@ dotnet run -c Release --project benchmarks/EntityFrameworkCore.Locking.Benchmark
 
 `--version` is required and labels the results folder (`results/v<x.y.z>/`). Additional BenchmarkDotNet arguments (e.g. `--filter '*SqlGeneration*'`) can be appended.
 
+Latest results: [v0.6.1 benchmark summary](benchmarks/EntityFrameworkCore.Locking.Benchmarks/results/v0.6.1/README.md).
+
 ## License
 
 [MIT](LICENSE)

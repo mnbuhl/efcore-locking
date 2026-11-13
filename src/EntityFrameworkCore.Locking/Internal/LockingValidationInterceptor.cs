@@ -5,6 +5,7 @@ using EntityFrameworkCore.Locking.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EntityFrameworkCore.Locking.Internal;
@@ -91,12 +92,16 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         var context = eventData.Context;
         // EF enlists the connection before ReaderExecuting, but ambient transactions
         // do not populate Database.CurrentTransaction or GetEnlistedTransaction().
+        // Use the provider's ambient state to respect enlistment opt-outs.
         if (
             context is null
             || (
                 context.Database.CurrentTransaction is null
                 && context.Database.GetEnlistedTransaction() is null
-                && Transaction.Current?.TransactionInformation.Status != TransactionStatus.Active
+                && (context.GetService<IRelationalConnection>() as ITransactionEnlistmentManager)
+                    ?.CurrentAmbientTransaction
+                    ?.TransactionInformation
+                    .Status != TransactionStatus.Active
             )
         )
             throw new LockingConfigurationException(

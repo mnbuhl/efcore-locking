@@ -43,7 +43,8 @@ This can be an EF transaction (`BeginTransaction` / `UseTransaction`), an active
 explicitly enlisted through `Database.EnlistTransaction`, or an ambient `TransactionScope`.
 For row locks, provider automatic ambient enlistment is sufficient; no explicit
 `Database.EnlistTransaction` call or additional `UseLocking` option is needed.
-The provider must support `System.Transactions` and enlist the connection.
+The provider must support `System.Transactions` and enlist the connection. Provider
+opt-outs such as Npgsql's `Enlist=false` require an EF or explicitly enlisted transaction.
 Enable async flow when using asynchronous queries:
 
 ```csharp

@@ -1,9 +1,11 @@
 using System.Data.Common;
+using System.Transactions;
 using EntityFrameworkCore.Locking.Abstractions;
 using EntityFrameworkCore.Locking.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EntityFrameworkCore.Locking.Internal;
@@ -87,13 +89,27 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         if (!TryExtractLockOptions(command.CommandText, out var lockOptions))
             return;
 
-        if (eventData.Context?.Database.CurrentTransaction is null)
+        var context = eventData.Context;
+        // EF enlists the connection before ReaderExecuting, but ambient transactions
+        // do not populate Database.CurrentTransaction or GetEnlistedTransaction().
+        // Use the provider's ambient state to respect enlistment opt-outs.
+        if (
+            context is null
+            || (
+                context.Database.CurrentTransaction is null
+                && context.Database.GetEnlistedTransaction() is null
+                && (context.GetService<IRelationalConnection>() as ITransactionEnlistmentManager)
+                    ?.CurrentAmbientTransaction
+                    ?.TransactionInformation
+                    .Status != TransactionStatus.Active
+            )
+        )
             throw new LockingConfigurationException(
                 "ForUpdate/ForShare requires an active transaction. "
-                    + "Call BeginTransaction() before executing a locking query."
+                    + "Call BeginTransaction(), enlist a transaction, or use an active TransactionScope before executing a locking query."
             );
 
-        var provider = ((IInfrastructure<IServiceProvider>)eventData.Context).Instance.GetService<ILockingProvider>();
+        var provider = ((IInfrastructure<IServiceProvider>)context).Instance.GetService<ILockingProvider>();
         if (provider is null)
             return;
 

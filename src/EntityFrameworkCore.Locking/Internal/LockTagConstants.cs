@@ -5,7 +5,7 @@ internal static class LockTagConstants
     internal const string Prefix = "__efcore_locking:";
 
     /// <summary>
-    /// Finds a lock tag in the leading query comments without scanning the SQL body.
+    /// Finds a lock tag in leading query comments, avoiding the body of ordinary SELECT queries.
     /// </summary>
     internal static int FindTag(string commandText)
     {
@@ -18,15 +18,17 @@ internal static class LockTagConstants
             var remaining = commandText.AsSpan(offset);
             if (!remaining.StartsWith("--", StringComparison.Ordinal))
             {
-                // Timeout preparation prepends SET statements. Keep the original search
-                // for these and block-comment layouts rather than parsing arbitrary SQL.
+                // EF read queries put their tags before SELECT. Only skip the body
+                // for that known layout; arbitrary preambles (DECLARE, EXEC, SET,
+                // block comments, etc.) must retain the original full-text search.
+                // Check the token boundary so SELECTED/SELECT_value are not shortcuts.
                 if (
-                    remaining.StartsWith("SET ", StringComparison.OrdinalIgnoreCase)
-                    || remaining.StartsWith("/*", StringComparison.Ordinal)
+                    remaining.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
+                    && (remaining.Length == 6 || char.IsWhiteSpace(remaining[6]))
                 )
-                    return commandText.IndexOf(Prefix, offset, StringComparison.Ordinal);
+                    return -1;
 
-                return -1;
+                return commandText.IndexOf(Prefix, offset, StringComparison.Ordinal);
             }
 
             offset += 2;

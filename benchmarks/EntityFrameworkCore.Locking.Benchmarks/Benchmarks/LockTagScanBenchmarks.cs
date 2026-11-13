@@ -15,7 +15,9 @@ public class LockTagScanBenchmarks
         "CustomTags_NoLock",
         "LeadingTag",
         "MultipleTags",
-        "TimeoutPrefix"
+        "TimeoutPrefix",
+        "DeclarePrefix",
+        "DeclarePrefix_NoLock"
     )]
     public string Scenario { get; set; } = "Short_NoTag";
 
@@ -35,6 +37,8 @@ public class LockTagScanBenchmarks
             "LeadingTag" => tag,
             "MultipleTags" => "-- custom-tag-a\n-- custom-tag-b\n" + tag,
             "TimeoutPrefix" => "SET LOCAL lock_timeout = '500ms';\n" + tag,
+            "DeclarePrefix" => "DECLARE @value int = 1;\n" + tag,
+            "DeclarePrefix_NoLock" => "DECLARE @value int = 1;\n",
             _ => "",
         };
         const string select = "SELECT \"Id\", \"Name\" FROM \"benchmark_entities\" WHERE \"Name\" = '";

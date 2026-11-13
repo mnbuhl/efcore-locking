@@ -21,6 +21,21 @@ public class LockTagScanTests
     [InlineData("SET LOCK_TIMEOUT 0;\n-- ")]
     [InlineData("set lock_timeout 500;\n-- ")]
     [InlineData("/* custom prefix */\n-- ")]
+    [InlineData("DECLARE @value int = 1;\n-- ")]
+    [InlineData("-- custom header\nDECLARE @value int = 1;\n-- ")]
+    [InlineData("EXEC initialize_session;\n-- ")]
+    [InlineData("EXPLAIN ")]
+    [InlineData("WITH items AS (SELECT 1)\n-- ")]
+    [InlineData("UPDATE items SET value = 1;\n-- ")]
+    [InlineData("INSERT INTO items VALUES (1);\n-- ")]
+    [InlineData("DELETE FROM items;\n-- ")]
+    [InlineData("SET\tLOCK_TIMEOUT 500;\n-- ")]
+    [InlineData(";\n-- ")]
+    [InlineData("(\n-- ")]
+    [InlineData("\uFEFF-- ")]
+    [InlineData("SELECTED -- ")]
+    [InlineData("SELECT_value -- ")]
+    [InlineData("SELECT1 -- ")]
     public void FindTag_FindsLeadingTagAndPreservesPreambles(string prefix)
     {
         var sql = prefix + Tag + "\r\nSELECT 1";
@@ -42,6 +57,9 @@ public class LockTagScanTests
     [InlineData("-- custom tag\r\nSELECT 1")]
     [InlineData("SELECT '__efcore_locking:ForUpdate:Wait:500'")]
     [InlineData("SELECT 1\n-- __efcore_locking:ForUpdate:Wait:500")]
+    [InlineData("select '__efcore_locking:ForUpdate:Wait:500'")]
+    [InlineData("SELECT\t'__efcore_locking:ForUpdate:Wait:500'")]
+    [InlineData("SELECT\r\n'__efcore_locking:ForUpdate:Wait:500'")]
     public void FindTag_DoesNotTreatSqlBodyAsQueryTags(string sql)
     {
         LockTagConstants.FindTag(sql).Should().Be(-1);

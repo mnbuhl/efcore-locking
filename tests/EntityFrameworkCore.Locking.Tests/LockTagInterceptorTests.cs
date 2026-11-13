@@ -27,13 +27,17 @@ public class LockTagInterceptorTests
     );
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Executing_LeadingTag_StillRequiresTransaction(bool async)
+    [InlineData(false, "")]
+    [InlineData(true, "")]
+    [InlineData(false, "DECLARE @value int = 1;\n")]
+    [InlineData(true, "DECLARE @value int = 1;\n")]
+    [InlineData(false, "EXEC initialize_session;\n")]
+    [InlineData(true, "EXEC initialize_session;\n")]
+    public async Task Executing_LeadingTag_StillRequiresTransaction(bool async, string preamble)
     {
         using var connection = new SqlConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = TaggedSql;
+        command.CommandText = preamble + TaggedSql;
         var interceptor = new LockingValidationInterceptor();
         var eventData = ExecutingEvent(command, null, async);
 
@@ -71,6 +75,9 @@ public class LockTagInterceptorTests
     [InlineData("SET SESSION innodb_lock_wait_timeout = 1;\n")]
     [InlineData("SET LOCK_TIMEOUT 500;\n")]
     [InlineData("SET LOCK_TIMEOUT 0;\n")]
+    [InlineData("DECLARE @value int = 1;\n")]
+    [InlineData("EXEC initialize_session;\n")]
+    [InlineData("-- custom header\nDECLARE @value int = 1;\n")]
     public async Task Executed_LeadingTag_WrapsReaderAndClearsContext(string preamble)
     {
         using var context = new TranslatorContext();

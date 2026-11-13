@@ -2,7 +2,7 @@
 <html lang='en'>
 <head>
 <meta charset='utf-8' />
-<title>EntityFrameworkCore.Locking.Benchmarks.Benchmarks.LockTagScanBenchmarks-20261113-154424</title>
+<title>EntityFrameworkCore.Locking.Benchmarks.Benchmarks.LockTagScanBenchmarks-20261113-160025</title>
 
 <style type="text/css">
 	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
@@ -22,22 +22,26 @@ Unknown processor
 <pre><code></code></pre>
 
 <table>
-<thead><tr><th>Method             </th><th>Scenario   </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+<thead><tr><th>Method             </th><th>Scenario      </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
 </tr>
-</thead><tbody><tr><td>Current_FullTextScan</td><td>CustomTags_NoLock</td><td>75.805 ns</td><td>1.5167 ns</td><td>2.1753 ns</td><td>1.00</td><td>0.04</td><td>-</td><td>NA</td>
-</tr><tr><td>Optimized_LeadingComments</td><td>CustomTags_NoLock</td><td>10.865 ns</td><td>0.1414 ns</td><td>0.1323 ns</td><td>0.14</td><td>0.00</td><td>-</td><td>NA</td>
-</tr><tr><td>Current_FullTextScan</td><td>LeadingTag</td><td>2.781 ns</td><td>0.0321 ns</td><td>0.0251 ns</td><td>1.00</td><td>0.01</td><td>-</td><td>NA</td>
-</tr><tr><td>Optimized_LeadingComments</td><td>LeadingTag</td><td>1.401 ns</td><td>0.0431 ns</td><td>0.0382 ns</td><td>0.50</td><td>0.01</td><td>-</td><td>NA</td>
-</tr><tr><td>Current_FullTextScan</td><td>Long_NoTag</td><td>74.719 ns</td><td>1.4900 ns</td><td>1.3938 ns</td><td>1.00</td><td>0.03</td><td>-</td><td>NA</td>
-</tr><tr><td>Optimized_LeadingComments</td><td>Long_NoTag</td><td>1.261 ns</td><td>0.0507 ns</td><td>0.0774 ns</td><td>0.02</td><td>0.00</td><td>-</td><td>NA</td>
-</tr><tr><td>Current_FullTextScan</td><td>MultipleTags</td><td>5.984 ns</td><td>0.0697 ns</td><td>0.0617 ns</td><td>1.00</td><td>0.01</td><td>-</td><td>NA</td>
-</tr><tr><td>Optimized_LeadingComments</td><td>MultipleTags</td><td>11.087 ns</td><td>0.2462 ns</td><td>0.3370 ns</td><td>1.85</td><td>0.06</td><td>-</td><td>NA</td>
-</tr><tr><td>Current_FullTextScan</td><td>Short_NoTag</td><td>5.659 ns</td><td>0.1030 ns</td><td>0.0913 ns</td><td>1.00</td><td>0.02</td><td>-</td><td>NA</td>
-</tr><tr><td>Optimized_LeadingComments</td><td>Short_NoTag</td><td>1.353 ns</td><td>0.0414 ns</td><td>0.0323 ns</td><td>0.24</td><td>0.01</td><td>-</td><td>NA</td>
-</tr><tr><td>Current_FullTextScan</td><td>TimeoutPrefix</td><td>6.425 ns</td><td>0.1150 ns</td><td>0.0961 ns</td><td>1.00</td><td>0.02</td><td>-</td><td>NA</td>
-</tr><tr><td>Optimized_LeadingComments</td><td>TimeoutPrefix</td><td>7.672 ns</td><td>0.0917 ns</td><td>0.0813 ns</td><td>1.19</td><td>0.02</td><td>-</td><td>NA</td>
-</tr><tr><td>Current_FullTextScan</td><td>VeryLong_NoTag</td><td>4,540.597 ns</td><td>79.4486 ns</td><td>70.4291 ns</td><td>1.000</td><td>0.02</td><td>-</td><td>NA</td>
-</tr><tr><td>Optimized_LeadingComments</td><td>VeryLong_NoTag</td><td>9.730 ns</td><td>0.2137 ns</td><td>0.2461 ns</td><td>0.002</td><td>0.00</td><td>-</td><td>NA</td>
+</thead><tbody><tr><td>Current_FullTextScan</td><td>CustomTags_NoLock</td><td>73.495 ns</td><td>0.2706 ns</td><td>0.2399 ns</td><td>1.00</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>CustomTags_NoLock</td><td>10.807 ns</td><td>0.0747 ns</td><td>0.0662 ns</td><td>0.15</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>DeclarePrefix</td><td>4.817 ns</td><td>0.0545 ns</td><td>0.0455 ns</td><td>1.00</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>DeclarePrefix</td><td>6.545 ns</td><td>0.1161 ns</td><td>0.1030 ns</td><td>1.36</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>DeclarePrefix_NoLock</td><td>73.789 ns</td><td>1.0076 ns</td><td>0.9425 ns</td><td>1.00</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>DeclarePrefix_NoLock</td><td>74.325 ns</td><td>0.2058 ns</td><td>0.1824 ns</td><td>1.01</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>LeadingTag</td><td>2.711 ns</td><td>0.0110 ns</td><td>0.0086 ns</td><td>1.00</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>LeadingTag</td><td>1.359 ns</td><td>0.0175 ns</td><td>0.0146 ns</td><td>0.50</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>Long_NoTag</td><td>74.519 ns</td><td>1.3896 ns</td><td>1.4869 ns</td><td>1.00</td><td>0.03</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>Long_NoTag</td><td>1.538 ns</td><td>0.0601 ns</td><td>0.0617 ns</td><td>0.02</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>MultipleTags</td><td>6.027 ns</td><td>0.1407 ns</td><td>0.1247 ns</td><td>1.00</td><td>0.03</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>MultipleTags</td><td>10.663 ns</td><td>0.1577 ns</td><td>0.1398 ns</td><td>1.77</td><td>0.04</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>Short_NoTag</td><td>5.504 ns</td><td>0.0774 ns</td><td>0.0686 ns</td><td>1.00</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>Short_NoTag</td><td>1.564 ns</td><td>0.0384 ns</td><td>0.0360 ns</td><td>0.28</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>TimeoutPrefix</td><td>6.017 ns</td><td>0.0737 ns</td><td>0.0689 ns</td><td>1.00</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>TimeoutPrefix</td><td>8.070 ns</td><td>0.0593 ns</td><td>0.0495 ns</td><td>1.34</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>VeryLong_NoTag</td><td>4,473.723 ns</td><td>10.5713 ns</td><td>8.8275 ns</td><td>1.000</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>VeryLong_NoTag</td><td>9.658 ns</td><td>0.1558 ns</td><td>0.1381 ns</td><td>0.002</td><td>0.00</td><td>-</td><td>NA</td>
 </tr></tbody></table>
 </body>
 </html>

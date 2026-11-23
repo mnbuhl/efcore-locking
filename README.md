@@ -377,7 +377,41 @@ The following scenarios are not detected at build or execution time:
 
 ## Target frameworks
 
-`net8.0`, `net9.0`, `net10.0`
+`net10.0`, `net11.0`. .NET 8 and 9 are no longer supported.
+
+## EF Core compatibility
+
+EF Core dependencies are bounded to `[10.0.0,12.0.0)`: version 10.0.0 or newer,
+including 11.x, excluding 12.0.0. Provider dependencies can further restrict the
+versions NuGet can resolve.
+
+| Provider | Dependency | Current verification |
+|----------|------------|----------------------|
+| PostgreSQL | Npgsql `[10.0.0,12.0.0)` | EF Core 10 on .NET 10 and 11; EF Core 11 on .NET 11. |
+| SQL Server | Microsoft SQL Server `[10.0.0,12.0.0)` | EF Core 10 on .NET 10 and 11; EF Core 11 on .NET 11. |
+| MySQL / MariaDB | Microting `[10.0.6,12.0.0)` | EF Core 10 on .NET 10 and 11; EF Core 11 on .NET 11. Microting 10.0.6 requires EF Core 10.0.6–10.0.999; Microting 11.0.0 requires EF Core 11.0.0–11.0.999. |
+
+The dependency ranges allow future compatible provider releases; they do not
+establish compatibility with unpublished releases. CI tests the combinations
+listed above. EF Core 11 requires .NET 11.
+
+Tests default to the EF Core 10 minimums. Select the EF Core 11 provider versions
+with `-p:EfCoreMajor=11`, limiting the target frameworks to .NET 11, for example:
+
+```bash
+dotnet test tests/EntityFrameworkCore.Locking.MySql.Tests --framework net11.0 -p:TargetFrameworks=net11.0 -p:EfCoreMajor=11
+```
+
+The same option applies to the PostgreSQL, SQL Server and core test projects.
+
+### Migrating from Pomelo
+
+The MySQL package now uses `Microting.EntityFrameworkCore.MySql`. Replace direct
+`Pomelo.EntityFrameworkCore.MySql` package references and provider namespace imports
+with their `Microting.EntityFrameworkCore.MySql` equivalents. Version 10.0.6 is the
+minimum because it introduced the renamed assembly and namespaces. Keep calling
+`UseMySql(...).UseLocking()` as before. Remove Pomelo references to avoid loading
+two MySQL providers.
 
 ## Benchmarks
 

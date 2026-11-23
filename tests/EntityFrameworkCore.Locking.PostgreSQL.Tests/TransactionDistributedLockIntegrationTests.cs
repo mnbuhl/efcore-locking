@@ -30,7 +30,7 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
     {
         await using var context = CreateContext();
         await using var transaction = await context.Database.BeginTransactionAsync();
-        await context.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('lock_timeout', {callerTimeout}, true)");
+        await context.Database.ExecuteSqlAsync($"SELECT set_config('lock_timeout', {callerTimeout}, true)");
         var previous = await ReadTimeout(context);
         for (var attempt = 0; attempt < 2; attempt++)
         {
@@ -60,9 +60,7 @@ public class TransactionDistributedLockIntegrationTests(PostgresFixture fixture)
         await using var contender = CreateContext();
         await using var ownerTransaction = await owner.Database.BeginTransactionAsync();
         await using var contenderTransaction = await contender.Database.BeginTransactionAsync();
-        await contender.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT set_config('lock_timeout', {callerTimeout}, true)"
-        );
+        await contender.Database.ExecuteSqlAsync($"SELECT set_config('lock_timeout', {callerTimeout}, true)");
         // Bound the test even if a regression disables lock_timeout when the caller uses zero.
         await contender.Database.ExecuteSqlRawAsync("SET LOCAL statement_timeout = '10s'");
         var key = $"stricter-timeout-{Guid.NewGuid():N}";

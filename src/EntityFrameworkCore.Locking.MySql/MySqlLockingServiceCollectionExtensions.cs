@@ -7,7 +7,7 @@ namespace EntityFrameworkCore.Locking.MySql;
 
 public static class MySqlLockingServiceCollectionExtensions
 {
-    /// <summary>Enables the locking interceptor for MySQL (Pomelo). Call after UseMySql().</summary>
+    /// <summary>Enables the locking interceptor for MySQL (Microting). Call after UseMySql().</summary>
     public static DbContextOptionsBuilder<TContext> UseLocking<TContext>(
         this DbContextOptionsBuilder<TContext> optionsBuilder
     )

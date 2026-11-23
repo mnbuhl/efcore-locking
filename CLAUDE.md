@@ -75,8 +75,8 @@ Each of the three provider projects (`EntityFrameworkCore.Locking.PostgreSQL`, `
 
 ### Build configuration
 
-- `Directory.Build.props` — shared across all projects: targets `net8.0;net9.0;net10.0`, `Nullable=enable`, `TreatWarningsAsErrors=true`, suppresses `EF1001` (intentional EF Core internal API use) and `CS1591`.
-- `Directory.Packages.props` — centralized package version management; never add `Version="..."` to individual `.csproj` files.
+- `Directory.Build.props` — shared across all projects: configures `Nullable=enable` for projects targeting `net10.0;net11.0`, `TreatWarningsAsErrors=true`, suppresses `EF1001` (intentional EF Core internal API use) and `CS1591`.
+- `Directory.Packages.props` — centralized versions for tests and benchmarks. Library projects disable CPM and declare bounded dependency ranges; standalone samples also disable CPM and pin their own versions.
 - Assertion library in tests is `AwesomeAssertions` (not FluentAssertions).
 
 ### Test structure

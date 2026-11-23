@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>EntityFrameworkCore.Locking.Benchmarks.Benchmarks.LockTagScanBenchmarks-20261113-160025</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.7.2 (25G332) [Darwin 25.6.0]
+Unknown processor
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+  DefaultJob : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method             </th><th>Scenario      </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Current_FullTextScan</td><td>CustomTags_NoLock</td><td>73.495 ns</td><td>0.2706 ns</td><td>0.2399 ns</td><td>1.00</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>CustomTags_NoLock</td><td>10.807 ns</td><td>0.0747 ns</td><td>0.0662 ns</td><td>0.15</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>DeclarePrefix</td><td>4.817 ns</td><td>0.0545 ns</td><td>0.0455 ns</td><td>1.00</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>DeclarePrefix</td><td>6.545 ns</td><td>0.1161 ns</td><td>0.1030 ns</td><td>1.36</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>DeclarePrefix_NoLock</td><td>73.789 ns</td><td>1.0076 ns</td><td>0.9425 ns</td><td>1.00</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>DeclarePrefix_NoLock</td><td>74.325 ns</td><td>0.2058 ns</td><td>0.1824 ns</td><td>1.01</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>LeadingTag</td><td>2.711 ns</td><td>0.0110 ns</td><td>0.0086 ns</td><td>1.00</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>LeadingTag</td><td>1.359 ns</td><td>0.0175 ns</td><td>0.0146 ns</td><td>0.50</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>Long_NoTag</td><td>74.519 ns</td><td>1.3896 ns</td><td>1.4869 ns</td><td>1.00</td><td>0.03</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>Long_NoTag</td><td>1.538 ns</td><td>0.0601 ns</td><td>0.0617 ns</td><td>0.02</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>MultipleTags</td><td>6.027 ns</td><td>0.1407 ns</td><td>0.1247 ns</td><td>1.00</td><td>0.03</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>MultipleTags</td><td>10.663 ns</td><td>0.1577 ns</td><td>0.1398 ns</td><td>1.77</td><td>0.04</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>Short_NoTag</td><td>5.504 ns</td><td>0.0774 ns</td><td>0.0686 ns</td><td>1.00</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>Short_NoTag</td><td>1.564 ns</td><td>0.0384 ns</td><td>0.0360 ns</td><td>0.28</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>TimeoutPrefix</td><td>6.017 ns</td><td>0.0737 ns</td><td>0.0689 ns</td><td>1.00</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>TimeoutPrefix</td><td>8.070 ns</td><td>0.0593 ns</td><td>0.0495 ns</td><td>1.34</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>Current_FullTextScan</td><td>VeryLong_NoTag</td><td>4,473.723 ns</td><td>10.5713 ns</td><td>8.8275 ns</td><td>1.000</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Optimized_LeadingComments</td><td>VeryLong_NoTag</td><td>9.658 ns</td><td>0.1558 ns</td><td>0.1381 ns</td><td>0.002</td><td>0.00</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

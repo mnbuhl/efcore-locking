@@ -48,7 +48,7 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         // Use the SQL tag as the reliable signal: AsyncLocal changes in child continuations
         // do not propagate back to the caller's execution context, so LockContext.Current
         // may still be set from a prior locking query when SaveChanges runs its own reader.
-        var wasLocking = command.CommandText.Contains(LockTagConstants.Prefix, StringComparison.Ordinal);
+        var wasLocking = LockTagConstants.FindTag(command.CommandText) >= 0;
         LockContext.Current = null;
         return wasLocking ? WrapReader(result, eventData.Context) : result;
     }
@@ -60,7 +60,7 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
         CancellationToken cancellationToken = default
     )
     {
-        var wasLocking = command.CommandText.Contains(LockTagConstants.Prefix, StringComparison.Ordinal);
+        var wasLocking = LockTagConstants.FindTag(command.CommandText) >= 0;
         LockContext.Current = null;
         return wasLocking
             ? new ValueTask<DbDataReader>(WrapReader(result, eventData.Context))
@@ -121,7 +121,7 @@ public sealed class LockingValidationInterceptor : DbCommandInterceptor
     private static bool TryExtractLockOptions(string commandText, out LockOptions? lockOptions)
     {
         lockOptions = null;
-        var prefixIndex = commandText.IndexOf(LockTagConstants.Prefix, StringComparison.Ordinal);
+        var prefixIndex = LockTagConstants.FindTag(commandText);
         if (prefixIndex < 0)
             return false;
 

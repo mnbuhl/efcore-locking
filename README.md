@@ -371,8 +371,7 @@ versions NuGet can resolve.
 
 The dependency ranges allow future compatible provider releases; they do not
 establish compatibility with unpublished releases. CI tests the combinations
-listed above and checks that the resolved EF Core and provider versions match the
-selected major. EF Core 11 requires .NET 11.
+listed above. EF Core 11 requires .NET 11.
 
 Tests default to the EF Core 10 minimums. Select the EF Core 11 provider versions
 with `-p:EfCoreMajor=11`, limiting the target frameworks to .NET 11, for example:

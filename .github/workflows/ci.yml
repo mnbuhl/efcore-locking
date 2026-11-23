@@ -30,21 +30,17 @@ jobs:
         run: dotnet pack --no-build --configuration Release --output ./artifacts
 
   test:
-    name: ${{ matrix.project }} (${{ matrix.framework }}, EF ${{ matrix.sqlserver-ef }})
+    name: ${{ matrix.project }} (${{ matrix.framework }}, EF ${{ matrix.ef-major }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         project: [Tests, PostgreSQL.Tests, MySql.Tests, SqlServer.Tests]
         framework: [net10.0, net11.0]
-        sqlserver-ef: ['10.0.0']
-        include:
-          - project: Tests
-            framework: net11.0
-            sqlserver-ef: '11.0.0'
-          - project: SqlServer.Tests
-            framework: net11.0
-            sqlserver-ef: '11.0.0'
+        ef-major: ['10', '11']
+        exclude:
+          - framework: net10.0
+            ef-major: '11'
     steps:
       - uses: actions/checkout@v4
       - name: Setup .NET
@@ -59,5 +55,23 @@ jobs:
           --configuration Release
           --framework ${{ matrix.framework }}
           -p:TargetFrameworks=${{ matrix.framework }}
-          -p:SqlServerEfCoreVersion=${{ matrix.sqlserver-ef }}
+          -p:EfCoreMajor=${{ matrix.ef-major }}
           --logger "console;verbosity=normal"
+      - name: Verify resolved EF Core and provider versions
+        env:
+          PROJECT: ${{ matrix.project }}
+          EF_MAJOR: ${{ matrix.ef-major }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os
+          project = os.environ['PROJECT']
+          path = f'tests/EntityFrameworkCore.Locking.{project}/obj/project.assets.json'
+          packages = json.load(open(path))['libraries']
+          provider = {'PostgreSQL.Tests': 'Npgsql.EntityFrameworkCore.PostgreSQL',
+                      'MySql.Tests': 'Microting.EntityFrameworkCore.MySql'}.get(
+                          project, 'Microsoft.EntityFrameworkCore.SqlServer')
+          for package in ['Microsoft.EntityFrameworkCore', provider]:
+              resolved = [key.split('/')[1] for key in packages if key.startswith(package + '/')]
+              assert len(resolved) == 1 and resolved[0].startswith(os.environ['EF_MAJOR'] + '.'), (package, resolved)
+              print(f'{package}: {resolved[0]}')
+          PYTHON

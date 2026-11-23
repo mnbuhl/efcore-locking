@@ -365,13 +365,23 @@ versions NuGet can resolve.
 
 | Provider | Dependency | Current verification |
 |----------|------------|----------------------|
-| PostgreSQL | Npgsql `[10.0.0,12.0.0)` | Stable EF Core 10 on .NET 10 and 11; stable Npgsql 11 is not yet available. |
+| PostgreSQL | Npgsql `[10.0.0,12.0.0)` | EF Core 10 on .NET 10 and 11; EF Core 11 on .NET 11. |
 | SQL Server | Microsoft SQL Server `[10.0.0,12.0.0)` | EF Core 10 on .NET 10 and 11; EF Core 11 on .NET 11. |
-| MySQL / MariaDB | Microting `[10.0.6,12.0.0)` | Stable EF Core 10 on .NET 10 and 11. Microting 10.0.6 requires EF Core 10.0.6–10.0.999. |
+| MySQL / MariaDB | Microting `[10.0.6,12.0.0)` | EF Core 10 on .NET 10 and 11; EF Core 11 on .NET 11. Microting 10.0.6 requires EF Core 10.0.6–10.0.999; Microting 11.0.0 requires EF Core 11.0.0–11.0.999. |
 
 The dependency ranges allow future compatible provider releases; they do not
 establish compatibility with unpublished releases. CI tests the combinations
-listed above. EF Core 11 requires .NET 11.
+listed above and checks that the resolved EF Core and provider versions match the
+selected major. EF Core 11 requires .NET 11.
+
+Tests default to the EF Core 10 minimums. Select the EF Core 11 provider versions
+with `-p:EfCoreMajor=11`, limiting the target frameworks to .NET 11, for example:
+
+```bash
+dotnet test tests/EntityFrameworkCore.Locking.MySql.Tests --framework net11.0 -p:TargetFrameworks=net11.0 -p:EfCoreMajor=11
+```
+
+The same option applies to the PostgreSQL, SQL Server and core test projects.
 
 ### Migrating from Pomelo
 

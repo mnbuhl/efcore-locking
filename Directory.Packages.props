@@ -17,21 +17,24 @@
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
   </ItemGroup>
 
-  <!-- Stable EF Core 10 baselines for tests and benchmarks. Library
+  <!-- Default to the EF Core 10 floor; CI also selects EfCoreMajor=11. Library
        projects disable CPM and declare bounded dependency ranges themselves. -->
   <PropertyGroup>
-    <SqlServerEfCoreVersion Condition="'$(SqlServerEfCoreVersion)' == ''"
-      >10.0.0</SqlServerEfCoreVersion
-    >
+    <EfCoreMajor Condition="'$(EfCoreMajor)' == ''">10</EfCoreMajor>
+    <!-- Microting 10.0.6 first introduced the renamed assembly and namespaces. -->
+    <MicrotingVersion>10.0.6</MicrotingVersion>
+    <MicrotingVersion Condition="'$(EfCoreMajor)' == '11'">11.0.0</MicrotingVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
-    <!-- Microting 10.0.6 is the first stable release with the Microting assembly and namespaces. -->
-    <PackageVersion Include="Microting.EntityFrameworkCore.MySql" Version="10.0.6" />
+    <PackageVersion
+      Include="Microsoft.EntityFrameworkCore.Relational"
+      Version="$(EfCoreMajor).0.0"
+    />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(EfCoreMajor).0.0" />
+    <PackageVersion Include="Microting.EntityFrameworkCore.MySql" Version="$(MicrotingVersion)" />
     <PackageVersion
       Include="Microsoft.EntityFrameworkCore.SqlServer"
-      Version="$(SqlServerEfCoreVersion)"
+      Version="$(EfCoreMajor).0.0"
     />
   </ItemGroup>
 </Project>
